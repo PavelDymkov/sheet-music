@@ -3,6 +3,7 @@
     "version": "0.0.3",
     "description": "DevKit for creating sheet music",
     "main": "lib",
+    "types": "lib",
     "scripts": {
         "build": "webpack --env production",
         "start": "webpack --watch",

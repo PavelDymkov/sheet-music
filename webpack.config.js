@@ -38,7 +38,7 @@ module.exports = (env = {}) => {
         merge([
             config,
             {
-                entry: "./src/core/index.ts",
+                entry: "./src/index.ts",
                 output: {
                     filename: "index.js",
                 },
