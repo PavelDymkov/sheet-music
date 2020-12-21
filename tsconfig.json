@@ -1,6 +1,7 @@
 {
     "compilerOptions": {
-        "baseUrl": "./src"
+        "declaration": true,
+        "declarationDir": "./lib"
     },
 
     "include": ["./src/**/*.ts"],
