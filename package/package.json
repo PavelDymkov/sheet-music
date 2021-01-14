@@ -1,0 +1,33 @@
+{
+    "name": "sheet-music",
+    "version": "0.0.3",
+    "description": "DevKit for creating sheet music",
+    "main": "lib",
+    "types": "lib",
+    "author": {
+        "name": "Pavel Dymkov",
+        "email": "dymkov86@gmail.com"
+    },
+    "keywords": [
+        "scorewriter",
+        "sheet music",
+        "music notation",
+        "music",
+        "notation",
+        "editor"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/PavelDymkov/sheet-music.git"
+    },
+    "bugs": {
+        "url": "https://github.com/PavelDymkov/sheet-music/issues"
+    },
+    "homepage": "https://github.com/PavelDymkov/sheet-music#readme",
+    "dependencies": {
+        "eventemitter3": "^4.0.7",
+        "fraction.js": "^4.0.13",
+        "logical-not": "^1.0.7"
+    }
+}

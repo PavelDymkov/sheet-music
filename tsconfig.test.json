@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+        "declaration": false,
+        "declarationDir": null,
+        "target": "ES5",
+        "types": ["node", "mocha"]
+    },
+
+    "include": ["./test/**/*.ts"]
+}

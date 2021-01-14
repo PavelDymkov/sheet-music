@@ -1,2 +1,7 @@
-lib/
+documentation/
 node_modules/
+package/lib/
+test/**/*.js
+
+
+test-example.js

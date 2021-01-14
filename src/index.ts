@@ -1,3 +1,1 @@
-import { test } from "./core/temp";
-
-export const x = "x" + test;
+export * from "./sheet-music";
