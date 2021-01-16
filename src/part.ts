@@ -1,3 +1,5 @@
+import { not } from "logical-not";
+
 import { Note } from "./note";
 import { NoteValue, NoteValueCombination } from "./note-value";
 
@@ -6,7 +8,7 @@ const item = Symbol("item");
 const itemPosition = Symbol("itemPosition");
 
 export class Part {
-    // readonly cursor = new PartCursor(this);
+    readonly cursor = new PartCursor(this);
 
     [position] = 0;
     [item]: PartItem = new PartItemSpacer();
@@ -19,6 +21,9 @@ export class Part {
     }
 
     insert(noteValue: NoteValue): PartItemNotes {
+        const newItemNotes = new PartItemNotes(noteValue);
+        const newItemSpacer = new PartItemSpacer();
+
         let nextItem: PartItemSpacer;
 
         if (this[item] instanceof PartItemNotes) {
@@ -29,15 +34,17 @@ export class Part {
         } else {
             nextItem = this[item] as PartItemSpacer;
 
-            this[position] = this[itemPosition];
+            const delta = this[position] - this[itemPosition];
+
+            newItemSpacer[value].size += delta;
+            nextItem[value].size -= delta;
+
+            this[itemPosition] = this[position];
         }
 
         const prevItem = nextItem[prev];
 
         nextItem[value].shrink(noteValue);
-
-        const newItemNotes = new PartItemNotes(noteValue);
-        const newItemSpacer = new PartItemSpacer();
 
         link(prevItem, newItemSpacer);
         link(newItemSpacer, newItemNotes);
@@ -47,32 +54,81 @@ export class Part {
     }
 
     remove(): void {
-        // if (this[item] instanceof PartItemNotes) {
-        //     const nextItem = this[item][next];
-        //     const prevItem = this[item][prev];
-        //     unlink(this[item]);
-        //     if (prevItem)
-        //         this[position] = this[itemPosition] = prevItem
-        //             ? this[itemPosition] - prevItem[value]
-        //             : 0;
-        //     link(prevItem, nextItem);
-        //     this[item] = prevItem ? prevItem : new PartItemSpacer();
-        // }
+        if (this[item] instanceof PartItemNotes) {
+            const nextItem = this[item][next];
+            const prevItem = this[item][prev];
+
+            unlink(this[item]);
+
+            this[item] = prevItem as PartItemSpacer;
+            this[position] = this[itemPosition];
+            this[itemPosition] -= this[item][value].size;
+
+            link(prevItem, nextItem);
+        }
     }
 
-    expand(noteValue: NoteValue): void {}
+    expand(noteValues: NoteValueCombination): NoteValueCombination {
+        if (this[item] instanceof PartItemNotes) {
+            const restSize =
+                noteValues.size - (this[position] - this[itemPosition]);
+
+            if (restSize > 0) {
+                const restNoteValues = NoteValueCombination.fromNumber(
+                    restSize,
+                );
+                const nextItem = this[item][next] as PartItemSpacer;
+
+                nextItem[value].size += restNoteValues.size;
+
+                return restNoteValues;
+            }
+        }
+
+        if (this[item] instanceof PartItemSpacer) {
+            this[item][value].size += noteValues.size;
+
+            return noteValues;
+        }
+
+        return NoteValueCombination.fromNumber(0);
+    }
+
+    shrink(noteValues: NoteValueCombination): NoteValueCombination {
+        if (this[item] instanceof PartItemNotes) {
+            const restSize =
+                noteValues.size - (this[position] - this[itemPosition]);
+
+            if (restSize > 0) {
+                const restNoteValues = NoteValueCombination.fromNumber(
+                    restSize,
+                );
+                const prevItem = this[item][prev] as PartItemSpacer;
+
+                prevItem[value].size += restNoteValues.size;
+
+                return restNoteValues;
+            }
+        }
+
+        if (this[item] instanceof PartItemSpacer) {
+            this[item][value].size += noteValues.size;
+
+            return noteValues;
+        }
+
+        return NoteValueCombination.fromNumber(0);
+    }
 }
 
 function link(prevItem: PartItem | null, nextItem: PartItem | null): void {
     if (
         prevItem instanceof PartItemSpacer &&
-        nextItem instanceof PartItemSpacer &&
-        prevItem[prev] &&
-        nextItem[next]
+        nextItem instanceof PartItemSpacer
     ) {
-        (prevItem as PartItemSpacer)[value].merge(
-            (nextItem as PartItemSpacer)[value],
-        );
+        (prevItem as PartItemSpacer)[
+            value
+        ].size += (nextItem as PartItemSpacer)[value].size;
 
         link(prevItem, nextItem[next]);
         unlink(nextItem);
@@ -83,6 +139,9 @@ function link(prevItem: PartItem | null, nextItem: PartItem | null): void {
 }
 
 function unlink(item: PartItem): void {
+    if (item[prev]) (item[prev] as PartItem)[next] = null;
+    if (item[next]) (item[next] as PartItem)[prev] = null;
+
     item[next] = item[prev] = null;
 }
 
@@ -111,84 +170,105 @@ export class PartItemNotes extends PartItem {
 
 export class PartItemSpacer extends PartItem {}
 
-// export class PartCursor {
-//     constructor(private part: Part) {}
+export class PartCursor {
+    constructor(private part: Part) {}
 
-//     forward(noteValue: NoteValueName, dot = false): void {
-//         const delta = noteValueToNumber(noteValue);
+    forward(noteValues: NoteValueCombination): void {
+        moveForward(this.part, noteValues.size);
+    }
 
-//         moveForward(this.part, dot ? delta * 1.5 : delta);
-//     }
+    backward(noteValues: NoteValueCombination): void {
+        moveBackward(this.part, noteValues.size);
+    }
 
-//     backward(noteValue: NoteValueName, dot = false): void {
-//         const delta = noteValueToNumber(noteValue);
+    next(): NoteValueCombination {
+        const { part } = this;
 
-//         moveBackward(this.part, dot ? delta * 1.5 : delta);
-//     }
+        const currentSize = part[item][value].size;
+        const delta = currentSize - (part[position] - part[itemPosition]);
 
-//     next(): void {
-//         const { part } = this;
+        moveForward(part, delta);
 
-//         const nextItem = part[item][next];
+        return NoteValueCombination.fromNumber(delta);
+    }
 
-//         if (nextItem) {
-//             const nextPosition = part[itemPosition] + part[item][value];
+    prev(): NoteValueCombination {
+        const { part } = this;
 
-//             part[position] = part[itemPosition] = nextPosition;
-//             part[item] = nextItem;
-//         }
-//     }
+        const delta = part[position] - part[itemPosition];
 
-//     prev(): void {
-//         const { part } = this;
+        moveBackward(part, delta);
 
-//         const prevItem = part[item][prev];
+        return NoteValueCombination.fromNumber(delta);
+    }
+}
 
-//         if (prevItem) {
-//             const nextPosition = part[itemPosition] - prevItem[value];
+function moveForward(part: Part, delta: number): void {
+    if (
+        delta === 0 &&
+        part[item] instanceof PartItemSpacer &&
+        part[item][value].size === 0 &&
+        part[item][next]
+    ) {
+        part[item] = part[item][next] as PartItem;
+    }
 
-//             part[position] = part[itemPosition] = nextPosition;
-//             part[item] = prevItem;
-//         }
-//     }
-// }
+    if (delta > 0) {
+        const currentItem = part[item];
+        const nextItem = currentItem[next];
+        const nextPosition = part[itemPosition] + currentItem[value].size;
 
-// function moveForward(part: Part, delta: number): void {
-//     if (delta > 0) {
-//         const currentItem = part[item];
-//         const nextItem = currentItem[next];
-//         const nextPosition = part[itemPosition] + currentItem[value];
+        if (part[position] + delta < nextPosition) {
+            part[position] += delta;
+        } else if (nextItem) {
+            part[position] = part[itemPosition] = nextPosition;
+            part[item] = nextItem;
 
-//         if (part[position] + delta < nextPosition) {
-//             part[position] += delta;
-//         } else if (nextItem) {
-//             part[position] = part[itemPosition] = nextPosition;
-//             part[item] = nextItem;
+            delta = Math.max(delta - (nextPosition - part[position]), delta);
 
-//             delta = Math.max(delta - (nextPosition - part[position]), delta);
+            moveForward(part, delta);
+        } else {
+            part[position] = part[itemPosition] + part[item][value].size;
+        }
+    }
+}
 
-//             moveForward(part, delta);
-//         }
-//     }
-// }
+function moveBackward(part: Part, delta: number, didJump = false): void {
+    if (
+        delta === 0 &&
+        part[item] instanceof PartItemSpacer &&
+        part[item][value].size === 0 &&
+        part[item][prev]
+    ) {
+        part[item] = part[item][prev] as PartItem;
+    }
 
-// function moveBackward(part: Part, delta: number): void {
-//     if (delta > 0) {
-//         const prevItem = part[item][prev];
+    if (delta > 0) {
+        const prevItem = part[item][prev];
 
-//         if (part[position] - delta >= part[itemPosition]) {
-//             part[position] -= delta;
-//         } else if (prevItem) {
-//             const currentDecrease = part[position] - part[itemPosition];
+        if (part[position] - delta >= part[itemPosition]) {
+            part[position] -= delta;
 
-//             delta -= currentDecrease;
+            if (
+                part[position] === part[itemPosition] &&
+                prevItem &&
+                not(didJump)
+            ) {
+                part[itemPosition] -= prevItem[value].size;
+                part[item] = prevItem;
+            }
+        } else if (prevItem) {
+            const currentDecrease = part[position] - part[itemPosition];
 
-//             part[position] -= currentDecrease;
-//             part[itemPosition] -= prevItem[value];
+            delta -= currentDecrease;
 
-//             moveBackward(part, delta);
-//         } else {
-//             part[position] = part[itemPosition] = 0;
-//         }
-//     }
-// }
+            part[position] -= currentDecrease;
+            part[itemPosition] -= prevItem[value].size;
+            part[item] = prevItem;
+
+            moveBackward(part, delta, true);
+        } else {
+            part[position] = part[itemPosition] = 0;
+        }
+    }
+}

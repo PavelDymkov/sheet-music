@@ -1,5 +1,5 @@
 {
     "name": "Sheet Music DevKit",
-    "out": "./documentation/",
+    "out": "./documentation/api/",
     "theme": "default"
 }

@@ -1,23 +1,11 @@
 import { ok } from "assert";
 
-import {
-    NoteValue,
-    NoteValueName,
-    NoteValueCombination,
-} from "../package/lib/note-value";
+import { NoteValue, NoteValueCombination } from "../package/lib/note-value";
 
 describe("sheet-music/note-value", () => {
-    it("should check NoteValue for all note value names", () => {
-        Object.keys(NoteValueName).forEach(noteValueName => {
-            ok(noteValueName in NoteValue);
-        });
-    });
-
     it("should check NoteValue items equality", () => {
-        ok(NoteValue.get(NoteValueName.Quarter) === NoteValue.Quarter);
-
-        const eight1 = NoteValue.get(NoteValueName.Eight, true);
-        const eight2 = NoteValue.get(NoteValueName.Eight, true);
+        const eight1 = NoteValue.dotted(NoteValue.Eight);
+        const eight2 = NoteValue.dotted(NoteValue.Eight);
 
         ok(eight1 === eight2);
     });
@@ -44,9 +32,7 @@ describe("sheet-music/note-value", () => {
 
         combination2.expand(NoteValue.Quarter);
 
-        combinationTester(combination2, [
-            NoteValue.get(NoteValueName.Half, true),
-        ]);
+        combinationTester(combination2, [NoteValue.dotted(NoteValue.Half)]);
     });
 
     it("should check NoteValueCombination.shrink()", () => {
@@ -60,9 +46,22 @@ describe("sheet-music/note-value", () => {
 
         combination2.shrink(NoteValue.Eight);
 
-        combinationTester(combination2, [
-            NoteValue.get(NoteValueName.Quarter, true),
-        ]);
+        combinationTester(combination2, [NoteValue.dotted(NoteValue.Quarter)]);
+    });
+
+    it("should check NoteValueCombination.size getter and setter", () => {
+        const combination1 = new NoteValueCombination(NoteValue.Half);
+        const halfSize = combination1.size;
+
+        combination1.shrink(NoteValue.Quarter);
+
+        const combination2 = new NoteValueCombination(NoteValue.Quarter);
+
+        ok(combination1.size === combination2.size);
+
+        combination1.size = halfSize;
+
+        combinationTester(combination1, [NoteValue.Half]);
     });
 
     it("should check combining of note values #1", () => {
@@ -92,8 +91,8 @@ describe("sheet-music/note-value", () => {
         combination.expand(NoteValue.Quarter);
 
         combinationTester(combination, [
-            NoteValue.get(NoteValueName.Half, true),
-            NoteValue.get(NoteValueName.Eight, true),
+            NoteValue.dotted(NoteValue.Half),
+            NoteValue.dotted(NoteValue.Eight),
         ]);
     });
 

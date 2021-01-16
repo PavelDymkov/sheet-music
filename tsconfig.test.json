@@ -3,7 +3,8 @@
         "declaration": false,
         "declarationDir": null,
         "target": "ES5",
-        "types": ["node", "mocha"]
+        "types": ["node", "mocha"],
+        "lib": ["ES2020"]
     },
 
     "include": ["./test/**/*.ts"]

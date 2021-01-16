@@ -1,98 +1,131 @@
-// import { ok } from "assert";
+import { ok } from "assert";
 
-// import {
-//     Part,
-//     PartItem,
-//     PartItemNotes,
-//     PartItemSpace,
-// } from "../package/lib/part";
-// import { NoteValue } from "../package/lib/note-value";
+import {
+    Part,
+    PartItem,
+    PartItemNotes,
+    PartItemSpacer,
+} from "../package/lib/part";
+import { NoteValue, NoteValueCombination } from "../package/lib/note-value";
 
-// describe("sheet-music/part", () => {
-//     it("should check empty part", () => {
-//         const [part, contains] = createPart();
+describe("sheet-music/part", () => {
+    it("should check empty part", () => {
+        const part = new Part();
 
-//         contains([spacer(), spacer()]);
-//     });
+        contains(part, [spacer()]);
+    });
 
-//     it("should insert eight note", () => {
-//         const [part, contains] = createPart();
+    it("should insert eight note", () => {
+        const part = new Part();
 
-//         part.insert(NoteValue.Eight);
+        part.insert(NoteValue.Eight);
 
-//         contains([spacer(), notes(NoteValue.Eight), spacer()]);
-//     });
-// });
+        contains(part, [spacer(), [NoteValue.Eight], spacer()]);
+    });
 
-// function createPart(): [Part, (structure: string[]) => void] {
-//     const part = new Part();
-//     const firstItem = getFirstItem();
-//     const [next, value] = getItemSymbols();
+    it("should remove last inserted", () => {
+        const part = new Part();
 
-//     return [
-//         part,
-//         (structure: string[]) => {
-//             structure = structure.slice();
+        part.insert(NoteValue.Eight);
+        part.insert(NoteValue.Quarter);
 
-//             let item = firstItem;
+        part.remove();
 
-//             do test(item, structure.shift());
-//             while ((item = item[next]));
+        contains(part, [spacer(), [NoteValue.Eight], spacer()]);
+    });
 
-//             console.log(structure);
-//             ok(structure.length === 0);
-//         },
-//     ];
+    it("should test cursor forward and backward", () => {
+        const part = new Part();
 
-//     function getFirstItem(): PartItem {
-//         const symbols = Object.getOwnPropertySymbols(part);
+        part.insert(NoteValue.Eight);
 
-//         for (let i = 0, lim = symbols.length; i < lim; i++) {
-//             const item = part[symbols[i]];
+        const note1 = part.item;
 
-//             if (item instanceof PartItem) {
-//                 return item;
-//             }
-//         }
-//     }
+        part.insert(NoteValue.Quarter);
 
-//     function getItemSymbols(): [symbol, symbol] {
-//         let next: symbol;
-//         let value: symbol;
+        const note2 = part.item;
 
-//         const symbols = Object.getOwnPropertySymbols(firstItem);
+        const quarter = new NoteValueCombination(NoteValue.Quarter);
+        const eight = new NoteValueCombination(NoteValue.Eight);
 
-//         for (let i = 0, lim = symbols.length; i < lim; i++) {
-//             const symbol = symbols[i];
-//             const item = firstItem[symbol];
+        part.cursor.forward(quarter);
 
-//             if (item instanceof PartItemSpace) {
-//                 next = symbol;
-//             }
+        ok(part.item === null);
 
-//             if (typeof item === "number") {
-//                 value = symbol;
-//             }
-//         }
+        part.cursor.backward(eight);
 
-//         return [next, value];
-//     }
+        ok(part.item === note2);
 
-//     function test(item: PartItem, expect: string): void {
-//         if (item instanceof PartItemNotes) {
-//             ok(notes(item.value, item.hasDot) === expect);
-//         }
+        part.cursor.backward(eight);
 
-//         if (item instanceof PartItemSpace) {
-//             ok(spacer(item[value]) === expect);
-//         }
-//     }
-// }
+        ok(part.item === null);
 
-// function spacer(value = 0): string {
-//     return `spacer (${value})`;
-// }
+        part.cursor.backward(eight);
 
-// function notes(noteValue: NoteValue, dot = false) {
-//     return dot ? `${noteValue} + dot` : `${noteValue}`;
-// }
+        ok(part.item === note1);
+    });
+
+    it("should test some sequence #1", () => {
+        const half = new NoteValueCombination(NoteValue.Half);
+        const quarterDotted = new NoteValueCombination(
+            NoteValue.dotted(NoteValue.Quarter),
+        );
+        const eight = new NoteValueCombination(NoteValue.Eight);
+
+        const part = new Part();
+
+        part.expand(half);
+        part.cursor.forward(half);
+        part.cursor.backward(quarterDotted);
+        part.insert(NoteValue.Quarter);
+
+        contains(part, [spacer(eight), [NoteValue.Quarter], spacer(eight)]);
+    });
+});
+
+type PartItemExpect = NoteValue[] | string;
+
+function contains(part: Part, expected: PartItemExpect[]): void {
+    const [, itemKey] = Object.getOwnPropertySymbols(part);
+
+    const currentItem = part[itemKey] as PartItem;
+
+    const [nextKey, prevKey, valueKey] = Object.getOwnPropertySymbols(
+        currentItem,
+    );
+
+    const items: PartItem[] = [currentItem];
+
+    let item: PartItem;
+
+    item = currentItem;
+
+    while ((item = item[nextKey])) items.push(item);
+
+    item = currentItem;
+
+    while ((item = item[prevKey])) items.unshift(item);
+
+    ok(items.length === expected.length);
+
+    items.forEach((item, i) => {
+        if (item instanceof PartItemNotes) {
+            const actual = item[valueKey].toArray() as NoteValue[];
+            const expect = expected[i];
+
+            ok(actual.length === expect.length);
+
+            actual.forEach((item, i) => ok(item === expect[i]));
+        }
+
+        if (item instanceof PartItemSpacer) {
+            ok(expected[i] === spacer(item[valueKey]));
+        }
+    });
+}
+
+function spacer(value?: NoteValueCombination): string {
+    const size = value ? value.size : 0;
+
+    return `spacer (${size})`;
+}

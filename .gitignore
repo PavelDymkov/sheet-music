@@ -1,4 +1,4 @@
-documentation/
+documentation/api/
 node_modules/
 package/lib/
 test/**/*.js
