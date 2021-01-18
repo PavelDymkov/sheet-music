@@ -1,5 +1,7 @@
 import { not } from "logical-not";
 
+import { TimeSignature } from "./time-signature";
+
 enum NoteValueName {
     Maxima = "maxima",
     Longa = "longa",
@@ -26,6 +28,7 @@ const noteValueNames = [
     NoteValueName.Maxima,
 ];
 
+const noteValueCache = {} as Record<number, NoteValue>;
 const noteValueNameSizeMap = {} as Record<NoteValueName, number>;
 
 noteValueNames.forEach(
@@ -33,15 +36,62 @@ noteValueNames.forEach(
         (noteValueNameSizeMap[noteValueName] = Math.pow(2, i + 1)),
 );
 
-type NoteValueCache = Record<NoteValueName, NoteValue[]>;
-
-const cache = {} as NoteValueCache;
 const token = Symbol();
-const value = Symbol();
+const set = Symbol();
+const sizeCache = Symbol();
 
 export class NoteValue {
+    static create(): NoteValue {
+        return NoteValue.fromNumber(0);
+    }
+
+    static fromNumber(size: number): NoteValue {
+        if (size < 0) size = 0;
+
+        if (not(size in noteValueCache)) {
+            if (size === 0) {
+                noteValueCache[0] = new NoteValue(token);
+            } else {
+                const instance = new NoteValue(token);
+
+                const maxNoteValueName =
+                    noteValueNames[noteValueNames.length - 1];
+                const maxSize = noteValueNameSizeMap[maxNoteValueName];
+
+                let counter = size;
+
+                while (counter >= maxSize) {
+                    instance[set].push(maxNoteValueName);
+
+                    counter -= maxSize;
+                }
+
+                for (let i = noteValueNames.length - 2; i >= 0; i--) {
+                    const current = noteValueNames[i];
+                    const currentSize = noteValueNameSizeMap[current];
+
+                    if (counter >= currentSize) {
+                        instance[set].push(current);
+
+                        counter -= currentSize;
+                    }
+                }
+
+                if (counter > 0) {
+                    size -= counter;
+                }
+
+                if (not(size in noteValueCache)) {
+                    noteValueCache[size] = instance;
+                }
+            }
+        }
+
+        return noteValueCache[size];
+    }
+
     static dotted(noteValue: NoteValue): NoteValue {
-        return create(noteValue[value], true);
+        return NoteValue.fromNumber(noteValue.size * 1.5);
     }
 
     static Maxima = create(NoteValueName.Maxima);
@@ -55,86 +105,12 @@ export class NoteValue {
     static ThirtySecond = create(NoteValueName.ThirtySecond);
     static SixtyFourth = create(NoteValueName.SixtyFourth);
 
-    [value]: NoteValueName;
-
-    constructor(
-        readonly dotted: boolean,
-        noteValueName: NoteValueName,
-        _: symbol,
-    ) {
-        if (_ !== token) {
-            throw new Error("Illegal constructor");
-        }
-
-        this[value] = noteValueName;
-    }
-}
-
-function create(noteValueName: NoteValueName, dotted = false): NoteValue {
-    if (not(cache[noteValueName])) {
-        cache[noteValueName] = [];
-    }
-
-    const i = dotted ? 1 : 0;
-
-    if (not(cache[noteValueName][i])) {
-        cache[noteValueName][i] = new NoteValue(dotted, noteValueName, token);
-    }
-
-    return cache[noteValueName][i];
-}
-
-function split(source: NoteValue): NoteValue[] {
-    const sourceNoteValueName = source[value];
-    const combination = [create(sourceNoteValueName)] as NoteValue[];
-
-    if (source.dotted && sourceNoteValueName !== noteValueNames[0]) {
-        const prevName = noteValueNames[indexOf(sourceNoteValueName) - 1];
-
-        combination.push(create(prevName));
-    }
-
-    return combination;
-}
-
-const combo = Symbol();
-const sizeCache = Symbol();
-
-export class NoteValueCombination {
-    static fromNumber(size: number): NoteValueCombination {
-        const instance = new NoteValueCombination();
-
-        if (size > 0) {
-            const maxNoteValueName = noteValueNames[noteValueNames.length - 1];
-            const maxSize = noteValueNameSizeMap[maxNoteValueName];
-
-            while (size >= maxSize) {
-                instance[combo].push(maxNoteValueName);
-
-                size -= maxSize;
-            }
-
-            for (let i = noteValueNames.length - 2; i >= 0; i--) {
-                const current = noteValueNames[i];
-                const currentSize = noteValueNameSizeMap[current];
-
-                if (size >= currentSize) {
-                    instance[combo].push(current);
-
-                    size -= currentSize;
-                }
-            }
-        }
-
-        return instance;
-    }
-
-    [combo]: NoteValueName[] = [];
+    [set]: NoteValueName[] = [];
     [sizeCache]: number = -1;
 
     get size(): number {
         if (this[sizeCache] === -1) {
-            this[sizeCache] = this[combo].reduce(
+            this[sizeCache] = this[set].reduce(
                 (size, noteValueName) =>
                     size + noteValueNameSizeMap[noteValueName],
                 0,
@@ -144,125 +120,71 @@ export class NoteValueCombination {
         return this[sizeCache];
     }
 
-    set size(value: number) {
-        const temp = NoteValueCombination.fromNumber(value);
-
-        this[combo] = temp[combo];
-        this[sizeCache] = -1;
+    get dotted(): boolean {
+        return (
+            this[set].length === 2 &&
+            Math.abs(indexOf(this[set][0]) - indexOf(this[set][1])) === 1
+        );
     }
 
-    constructor(initial?: NoteValue) {
-        if (initial) {
-            this[combo] = split(initial).map(
-                ({ [value]: noteValueName }) => noteValueName,
-            );
+    constructor(_: symbol) {
+        if (_ !== token) {
+            throw new Error("Illegal constructor");
         }
     }
 
-    expand(noteValue: NoteValue): void {
-        split(noteValue).forEach(({ [value]: noteValueName }) => {
-            expand(this[combo], noteValueName);
-        });
-
-        this[sizeCache] = -1;
+    expand(noteValue: NoteValue): NoteValue {
+        return NoteValue.fromNumber(this.size + noteValue.size);
     }
 
-    shrink(noteValue: NoteValue): void {
-        split(noteValue).forEach(({ [value]: noteValueName }) => {
-            shrink(this[combo], noteValueName);
-        });
-
-        this[sizeCache] = -1;
+    shrink(noteValue: NoteValue): NoteValue {
+        return NoteValue.fromNumber(this.size - noteValue.size);
     }
 
-    toArray(): NoteValue[] {
-        const sorted: NoteValueName[] = [];
-
-        this[combo].forEach(item => {
-            const itemIndex = indexOf(item);
-
-            for (let i = 0, lim = sorted.length; i <= lim; i++) {
-                if (i === lim) {
-                    sorted.push(item);
-                } else {
-                    const currentIndex = indexOf(sorted[i]);
-
-                    if (itemIndex > currentIndex) {
-                        sorted.splice(i, 0, item);
-
-                        break;
-                    }
-                }
-            }
-        });
-
+    split(timeSignature: TimeSignature, offset?: NoteValue): NoteValue[] {
         const array: NoteValue[] = [];
 
-        for (let i = 0, lim = sorted.length; i < lim; i++) {
-            if (
-                i + 1 < lim &&
-                indexOf(sorted[i]) - indexOf(sorted[i + 1]) === 1
-            ) {
-                array.push(create(sorted[i], true));
+        const barSize = timeSignature.barValue.size;
 
-                i += 1;
+        let size = barSize - (offset ? offset.size : 0);
+        let currentNoteValue = NoteValue.fromNumber(0);
+
+        this[set].forEach(noteValueName => {
+            let currentSize = noteValueNameSizeMap[noteValueName];
+
+            if (currentSize <= size) {
+                size -= currentSize;
+
+                currentNoteValue = currentNoteValue.expand(
+                    NoteValue.fromNumber(currentSize),
+                );
             } else {
-                array.push(create(sorted[i]));
+                array.push(currentNoteValue.expand(NoteValue.fromNumber(size)));
+
+                currentSize -= size;
+
+                while (currentSize > barSize) {
+                    array.push(NoteValue.fromNumber(barSize));
+
+                    currentSize -= barSize;
+                }
+
+                size = barSize - currentSize;
+
+                currentNoteValue = NoteValue.fromNumber(currentSize);
             }
+        });
+
+        if (array[array.length - 1] !== currentNoteValue) {
+            array.push(currentNoteValue);
         }
 
         return array;
     }
 }
 
-function expand(array: NoteValueName[], item: NoteValueName): void {
-    const i = array.indexOf(item);
-
-    if (i === -1 || item === noteValueNames[noteValueNames.length - 1]) {
-        array.push(item);
-    } else {
-        array.splice(i, 1);
-
-        const double = noteValueNames[indexOf(item) + 1];
-
-        expand(array, double);
-    }
-}
-
-function shrink(array: NoteValueName[], item: NoteValueName): void {
-    const i = array.indexOf(item);
-
-    if (i !== -1) {
-        array.splice(i, 1);
-    } else {
-        const nameIndex = indexOf(item);
-
-        let closestIndex = -1;
-
-        for (let j = 0, lim = array.length; j < lim; j++) {
-            const currentIndex = indexOf(array[j]);
-
-            if (currentIndex === nameIndex + 1) {
-                closestIndex = currentIndex;
-
-                break;
-            }
-
-            if (currentIndex > nameIndex) {
-                closestIndex = Math.max(closestIndex, currentIndex);
-            }
-        }
-
-        if (closestIndex === -1) {
-            array.length = 0;
-        } else {
-            array.splice(array.indexOf(noteValueNames[closestIndex]));
-
-            while (--closestIndex >= nameIndex) {
-                expand(array, noteValueNames[closestIndex]);
-            }
-        }
-    }
+function create(noteValueName: NoteValueName): NoteValue {
+    return NoteValue.fromNumber(noteValueNameSizeMap[noteValueName]);
 }
 
 function indexOf(noteValueName: NoteValueName): number {

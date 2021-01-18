@@ -1,6 +1,7 @@
 import { ok } from "assert";
 
-import { NoteValue, NoteValueCombination } from "../package/lib/note-value";
+import { NoteValue } from "../package/lib/note-value";
+import { TimeSignature } from "../package/lib/time-signature";
 
 describe("sheet-music/note-value", () => {
     it("should check NoteValue items equality", () => {
@@ -10,87 +11,81 @@ describe("sheet-music/note-value", () => {
         ok(eight1 === eight2);
     });
 
-    it("should check NoteValueCombination.toArray()", () => {
-        const combination = new NoteValueCombination(NoteValue.Half);
-        const array = combination.toArray();
+    it("should check NoteValue.expand()", () => {
+        consistsOf(NoteValue.Half.expand(NoteValue.Eight), [
+            NoteValue.Half,
+            NoteValue.Eight,
+        ]);
+        consistsOf(NoteValue.Half.expand(NoteValue.Quarter), [
+            NoteValue.dotted(NoteValue.Half),
+        ]);
+    });
 
+    it("should check NoteValue.shrink()", () => {
+        consistsOf(NoteValue.Half.shrink(NoteValue.Quarter), [
+            NoteValue.Quarter,
+        ]);
+        consistsOf(NoteValue.Half.shrink(NoteValue.Eight), [
+            NoteValue.dotted(NoteValue.Quarter),
+        ]);
+    });
+
+    it("should check NoteValue.size getter", () => {
         ok(
-            Array.isArray(array) &&
-                array.length === 1 &&
-                array[0] === NoteValue.Half,
+            NoteValue.Half.shrink(NoteValue.Quarter).size ===
+                NoteValue.Quarter.size,
         );
     });
 
-    it("should check NoteValueCombination.expand()", () => {
-        const combination1 = new NoteValueCombination(NoteValue.Half);
-
-        combination1.expand(NoteValue.Eight);
-
-        combinationTester(combination1, [NoteValue.Half, NoteValue.Eight]);
-
-        const combination2 = new NoteValueCombination(NoteValue.Half);
-
-        combination2.expand(NoteValue.Quarter);
-
-        combinationTester(combination2, [NoteValue.dotted(NoteValue.Half)]);
+    it("should check NoteValue.split() #1", () => {
+        checkSplitted(
+            NoteValue.dotted(NoteValue.Quarter).split(
+                TimeSignature.fromString("4/4"),
+            ),
+            [NoteValue.dotted(NoteValue.Quarter)],
+        );
     });
 
-    it("should check NoteValueCombination.shrink()", () => {
-        const combination1 = new NoteValueCombination(NoteValue.Half);
-
-        combination1.shrink(NoteValue.Quarter);
-
-        combinationTester(combination1, [NoteValue.Quarter]);
-
-        const combination2 = new NoteValueCombination(NoteValue.Half);
-
-        combination2.shrink(NoteValue.Eight);
-
-        combinationTester(combination2, [NoteValue.dotted(NoteValue.Quarter)]);
+    it("should check NoteValue.split() #2", () => {
+        checkSplitted(
+            NoteValue.dotted(NoteValue.Half).split(
+                TimeSignature.fromString("4/4"),
+                TimeSignature.fromString("3/4").barValue,
+            ),
+            [NoteValue.Quarter, NoteValue.Half],
+        );
     });
 
-    it("should check NoteValueCombination.size getter and setter", () => {
-        const combination1 = new NoteValueCombination(NoteValue.Half);
-        const halfSize = combination1.size;
-
-        combination1.shrink(NoteValue.Quarter);
-
-        const combination2 = new NoteValueCombination(NoteValue.Quarter);
-
-        ok(combination1.size === combination2.size);
-
-        combination1.size = halfSize;
-
-        combinationTester(combination1, [NoteValue.Half]);
+    it("should check NoteValue.split() #3", () => {
+        NoteValue.dotted(NoteValue.Whole).split(
+            TimeSignature.fromString("4/4"),
+            TimeSignature.fromString("3/4").barValue,
+        ),
+            [NoteValue.Quarter, NoteValue.Whole, NoteValue.Quarter];
     });
 
     it("should check combining of note values #1", () => {
-        const combination = new NoteValueCombination(NoteValue.Half);
+        const noteValue = NoteValue.Half.expand(NoteValue.Quarter)
+            .expand(NoteValue.Eight)
+            .expand(NoteValue.Eight);
 
-        combination.expand(NoteValue.Quarter);
-        combination.expand(NoteValue.Eight);
-        combination.expand(NoteValue.Eight);
-
-        combinationTester(combination, [NoteValue.Whole]);
+        consistsOf(noteValue, [NoteValue.Whole]);
     });
 
     it("should check combining of note values #2", () => {
-        const combination = new NoteValueCombination(NoteValue.Maxima);
+        const noteValue = NoteValue.Maxima.expand(NoteValue.Longa).expand(
+            NoteValue.Longa,
+        );
 
-        combination.expand(NoteValue.Longa);
-        combination.expand(NoteValue.Longa);
-
-        combinationTester(combination, [NoteValue.Maxima, NoteValue.Maxima]);
+        consistsOf(noteValue, [NoteValue.Maxima, NoteValue.Maxima]);
     });
 
     it("should check combining of note values #3", () => {
-        const combination = new NoteValueCombination(NoteValue.Eight);
+        const noteValue = NoteValue.Eight.expand(NoteValue.Half)
+            .expand(NoteValue.Sixteenth)
+            .expand(NoteValue.Quarter);
 
-        combination.expand(NoteValue.Half);
-        combination.expand(NoteValue.Sixteenth);
-        combination.expand(NoteValue.Quarter);
-
-        combinationTester(combination, [
+        consistsOf(noteValue, [
             NoteValue.dotted(NoteValue.Half),
             NoteValue.dotted(NoteValue.Eight),
         ]);
@@ -99,15 +94,20 @@ describe("sheet-music/note-value", () => {
     // it("should check combining of note values #", () => {});
 });
 
-function combinationTester(
-    combination: NoteValueCombination,
+function consistsOf(noteValue: NoteValue, expectedArray: NoteValue[]): void {
+    const expectedSize = expectedArray.reduce(
+        (sum, item) => sum + item.size,
+        0,
+    );
+
+    ok(noteValue.size === expectedSize);
+}
+
+function checkSplitted(
+    actualArray: NoteValue[],
     expectedArray: NoteValue[],
 ): void {
-    const array = combination.toArray();
+    ok(actualArray.length === expectedArray.length);
 
-    ok(array.length === expectedArray.length);
-
-    array.forEach((item, i) => {
-        ok(item === expectedArray[i]);
-    });
+    actualArray.forEach((item, i) => ok(item === expectedArray[i]));
 }

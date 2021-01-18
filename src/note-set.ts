@@ -8,6 +8,10 @@ export class NoteSet {
 
     [value]: NoteValue;
 
+    get value(): NoteValue {
+        return this[value];
+    }
+
     constructor(noteValue: NoteValue) {
         this[value] = noteValue;
     }
