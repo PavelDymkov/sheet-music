@@ -55,12 +55,19 @@ describe("sheet-music/part", () => {
         part.cursor.backward(NoteValue.Eight);
 
         ok(part.item === note1);
+
+        contains(part, [
+            spacer(),
+            NoteValue.Eight,
+            spacer(),
+            NoteValue.Quarter,
+            spacer(),
+        ]);
     });
 
     it("should test some sequence #1", () => {
         const part = new Part();
 
-        part.expand(NoteValue.Half);
         part.cursor.forward(NoteValue.Half);
         part.cursor.backward(NoteValue.dotted(NoteValue.Quarter));
         part.insert(NoteValue.Quarter);

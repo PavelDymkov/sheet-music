@@ -11,6 +11,11 @@ describe("sheet-music/note-value", () => {
         ok(eight1 === eight2);
     });
 
+    it("should test NoteValue.fromNumber()", () => {
+        ok(NoteValue.fromNumber(NoteValue.Eight.size) === NoteValue.Eight);
+        ok(NoteValue.fromNumber(0) === NoteValue.fromNumber(-1));
+    });
+
     it("should check NoteValue.expand()", () => {
         consistsOf(NoteValue.Half.expand(NoteValue.Eight), [
             NoteValue.Half,
