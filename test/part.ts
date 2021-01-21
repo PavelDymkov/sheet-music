@@ -1,6 +1,6 @@
 import { ok } from "assert";
 
-import { Part } from "../package/lib/part";
+import { Part, Item } from "../package/lib/part";
 import { NoteValue } from "../package/lib/note-value";
 
 describe("sheet-music/part", () => {
@@ -42,7 +42,7 @@ describe("sheet-music/part", () => {
 
         part.cursor.forward(NoteValue.Quarter);
 
-        ok(part.item === null);
+        ok(part.item.isSpacer);
 
         part.cursor.backward(NoteValue.Eight);
 
@@ -50,7 +50,7 @@ describe("sheet-music/part", () => {
 
         part.cursor.backward(NoteValue.Eight);
 
-        ok(part.item === null);
+        ok(part.item.isSpacer);
 
         part.cursor.backward(NoteValue.Eight);
 
@@ -85,11 +85,11 @@ type PartItemExpect = NoteValue | string;
 function contains(part: Part, expected: PartItemExpect[]): void {
     const [, itemKey] = Object.getOwnPropertySymbols(part);
 
-    const currentItem = part[itemKey];
+    const currentItem = part[itemKey] as Item;
 
     const [nextKey, prevKey] = Object.getOwnPropertySymbols(currentItem);
 
-    const items = [currentItem];
+    const items: Item[] = [currentItem];
 
     let item;
 
@@ -104,14 +104,16 @@ function contains(part: Part, expected: PartItemExpect[]): void {
     ok(items.length === expected.length);
 
     items.forEach((item, i) => {
-        const [, , key] = Object.getOwnPropertySymbols(item);
+        const [, , , , valueKey] = Object.getOwnPropertySymbols(item);
 
-        if ((item as any).isSpacer) {
-            ok(expected[i] === spacer(item[key]));
+        if (item.isSpacer) {
+            ok(expected[i] === spacer(item[valueKey]));
         } else {
-            const actual = item[key].value as NoteValue;
+            const actual = item[valueKey] as NoteValue;
             const expect = expected[i] as NoteValue;
 
+            ok(actual instanceof NoteValue);
+            ok(expect instanceof NoteValue);
             ok(actual.size === expect.size);
         }
     });

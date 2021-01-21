@@ -36,4 +36,12 @@ export class Note {
         readonly accidental = Accidental.Natural,
         readonly octave: Octave = 0,
     ) {}
+
+    isEqual(note: Note): boolean {
+        return (
+            this.note === note.note &&
+            this.accidental === note.accidental &&
+            this.octave === note.octave
+        );
+    }
 }

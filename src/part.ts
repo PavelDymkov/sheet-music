@@ -1,52 +1,51 @@
 import { not } from "logical-not";
 
-import { Tuplet } from "./tuplet";
+import { Note } from "./note";
 import { NoteValue } from "./note-value";
+import { Tuplet } from "./tuplet";
 
 const position = Symbol("position");
 const item = Symbol("item");
 const itemPosition = Symbol("itemPosition");
 
 export class Part {
-    readonly cursor = new PartCursor(this);
+    readonly cursor = new Cursor(this);
 
     [position] = 0;
-    [item] = new PartItem();
+    [item] = new Item();
     [itemPosition] = 0;
 
-    get item(): Tuplet | null {
-        return this[item][tuplet] || null;
+    get item(): Item {
+        return this[item];
     }
 
     insert(noteValue: NoteValue): NoteValue {
         const prevPosition = this[position];
 
-        const newItem = new PartItem(noteValue);
-        const newItemSpacer = new PartItem();
+        const newItem = new Item(noteValue);
+        const newItemSpacer = new Item();
 
-        let nextItem: PartItem;
+        let nextItem: Item;
 
         if (this[item].isSpacer) {
             nextItem = this[item];
 
             const delta = this[position] - this[itemPosition];
 
-            nextItem[spacer] = NoteValue.fromNumber(
-                nextItem[spacer].size - (delta + noteValue.size),
+            nextItem[value] = NoteValue.fromNumber(
+                nextItem[value].size - (delta + noteValue.size),
             );
-            newItemSpacer[spacer] = NoteValue.fromNumber(delta);
+            newItemSpacer[value] = NoteValue.fromNumber(delta);
 
             this[itemPosition] = this[position];
         } else {
-            nextItem = this[item][next] as PartItem;
+            nextItem = this[item][next] as Item;
 
             this[position] = this[itemPosition] =
-                this[itemPosition] + this[item][tuplet].value.size;
+                this[itemPosition] + this[item][value].size;
         }
 
         const prevItem = nextItem[prev];
-
-        nextItem[spacer] = nextItem[spacer].shrink(noteValue);
 
         link(prevItem, newItemSpacer);
         link(newItemSpacer, newItem);
@@ -66,9 +65,9 @@ export class Part {
 
             unlink(this[item]);
 
-            this[item] = prevItem as PartItem;
+            this[item] = prevItem as Item;
             this[position] = this[itemPosition];
-            this[itemPosition] -= this[item][spacer].size;
+            this[itemPosition] -= this[item][value].size;
 
             link(prevItem, nextItem);
 
@@ -79,10 +78,10 @@ export class Part {
     }
 }
 
-function link(prevItem: PartItem | null, nextItem: PartItem | null): void {
+function link(prevItem: Item | null, nextItem: Item | null): void {
     if (prevItem?.isSpacer && nextItem?.isSpacer) {
-        prevItem[spacer] = NoteValue.fromNumber(
-            prevItem[spacer].size + nextItem[spacer].size,
+        prevItem[value] = NoteValue.fromNumber(
+            prevItem[value].size + nextItem[value].size,
         );
 
         link(prevItem, nextItem[next]);
@@ -93,43 +92,56 @@ function link(prevItem: PartItem | null, nextItem: PartItem | null): void {
     }
 }
 
-function unlink(item: PartItem): void {
-    if (item[prev]) (item[prev] as PartItem)[next] = null;
-    if (item[next]) (item[next] as PartItem)[prev] = null;
+function unlink(item: Item): void {
+    if (item[prev]) (item[prev] as Item)[next] = null;
+    if (item[next]) (item[next] as Item)[prev] = null;
 
     item[next] = item[prev] = null;
 }
 
 const next = Symbol("next");
 const prev = Symbol("prev");
+const value = Symbol("value");
 const tuplet = Symbol("tuplet");
-const spacer = Symbol("spacer");
+const index = Symbol("index");
 
-class PartItem {
-    [next]: PartItem | null = null;
-    [prev]: PartItem | null = null;
+export class Item {
+    [next]: Item | null = null;
+    [prev]: Item | null = null;
 
-    [tuplet]: Tuplet;
-    [spacer]: NoteValue;
+    [tuplet]: Note[][] = [];
+    [index]: number = 0;
+
+    [value]: NoteValue;
 
     get isSpacer(): boolean {
-        return Boolean(this[spacer]);
+        return this[tuplet].length === 0;
     }
 
     get value(): NoteValue {
-        return this[spacer] || this[tuplet].value;
+        return this[value];
     }
 
-    constructor(noteValue?: NoteValue) {
-        if (noteValue) {
-            this[tuplet] = new Tuplet(noteValue);
-        } else {
-            this[spacer] = NoteValue.fromNumber(0);
-        }
+    get tuplet(): Tuplet {
+        const instance = new Tuplet(this[value], this[tuplet].length);
+
+        this[tuplet].forEach((noteSet, i) => {
+            noteSet.forEach(note => {
+                instance.insertNote(note, i);
+            });
+        });
+
+        return instance;
+    }
+
+    constructor(noteValue = NoteValue.fromNumber(0)) {
+        this[value] = noteValue;
+
+        if (noteValue.size > 0) this[tuplet] = [[]];
     }
 }
 
-export class PartCursor {
+export class Cursor {
     constructor(private part: Part) {}
 
     forward(noteValue: NoteValue): void {
@@ -144,7 +156,7 @@ export class PartCursor {
         const { part } = this;
 
         const prevPosition = part[position];
-        const currentSize = part[item][spacer].size;
+        const currentSize = part[item][value].size;
         const delta = currentSize - (part[position] - part[itemPosition]);
 
         moveForward(part, delta);
@@ -162,16 +174,61 @@ export class PartCursor {
 
         return NoteValue.fromNumber(part[position] - prevPosition);
     }
+
+    insertNote(note: Note): void {
+        const partItem = this.part[item];
+
+        if (not(partItem.isSpacer)) {
+            const notes = partItem[tuplet][partItem[index]];
+
+            if (notes.every(item => not(item.isEqual(note)))) {
+                notes.push(note);
+            }
+        }
+    }
+
+    removeNote(note: Note): void {
+        const partItem = this.part[item];
+
+        if (not(partItem.isSpacer)) {
+            const notes = partItem[tuplet][partItem[index]];
+            const i = notes.findIndex(item => item.isEqual(note));
+
+            notes.splice(i, 1);
+        }
+    }
+
+    changeNoteValue(noteValue: NoteValue): void {
+        const partItem = this.part[item];
+
+        if (not(partItem.isSpacer)) {
+            partItem[value] = noteValue;
+        }
+    }
+
+    setTupletIndex(index_: number): void {
+        const partItem = this.part[item];
+
+        if (not(partItem.isSpacer)) {
+            for (let i = 0, lim = Tuplet.verify(index_); i < lim; i++) {
+                partItem[tuplet][i] = partItem[tuplet][i] || [];
+            }
+
+            if (partItem[index] >= partItem[tuplet].length) {
+                partItem[index] = partItem[tuplet].length - 1;
+            }
+        }
+    }
 }
 
 function moveForward(part: Part, delta: number): void {
     if (
         delta === 0 &&
         part[item].isSpacer &&
-        part[item][spacer].size === 0 &&
+        part[item][value].size === 0 &&
         part[item][next]
     ) {
-        part[item] = part[item][next] as PartItem;
+        part[item] = part[item][next] as Item;
     }
 
     if (delta > 0) {
@@ -191,10 +248,10 @@ function moveForward(part: Part, delta: number): void {
 
             moveForward(part, delta);
         } else {
-            part[item][spacer] = part[item][spacer].expand(
+            part[item][value] = part[item][value].expand(
                 NoteValue.fromNumber(delta - currentItem.value.size),
             );
-            part[position] = part[itemPosition] + part[item][spacer].size;
+            part[position] = part[itemPosition] + part[item][value].size;
         }
     }
 }
@@ -203,10 +260,10 @@ function moveBackward(part: Part, delta: number, didJump = false): void {
     if (
         delta === 0 &&
         part[item].isSpacer &&
-        part[item][spacer].size === 0 &&
+        part[item][value].size === 0 &&
         part[item][prev]
     ) {
-        part[item] = part[item][prev] as PartItem;
+        part[item] = part[item][prev] as Item;
     }
 
     if (delta > 0) {

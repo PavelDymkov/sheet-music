@@ -1,19 +1,33 @@
-import not from "logical-not";
+import { EventEmitter } from "eventemitter3";
+import { not } from "logical-not";
+
+import { Bar } from "./bar";
+import { Specifier } from "./specifiers/specifier";
 import { Staff } from "./staff";
 
-const cursor = Symbol();
 const staffs = Symbol();
 const staffIndex = Symbol();
+const bars = Symbol();
+const specifiers = Symbol();
 
 export class SheetMusic {
-    readonly [cursor]: Cursor;
+    static readonly Events = {
+        change: Symbol(),
+    };
+
+    readonly cursor: Cursor;
+    readonly bars = createBarsIterator(this);
+    readonly events = new EventEmitter();
+
     readonly [staffs]: Staff[] = [];
+    readonly [bars]: Bar[][] = [];
+    readonly [specifiers]: Specifier[][] = [];
 
     [staffIndex] = -1;
 
-    constructor(cursor_: Cursor) {
-        this[cursor] = cursor_;
-        this[cursor][owner] = this;
+    constructor() {
+        this.cursor = new Cursor();
+        this.cursor[owner] = this;
     }
 
     insertStaff(): void {
@@ -21,7 +35,9 @@ export class SheetMusic {
     }
 
     removeStaff(): void {
-        this[staffs].splice(this[staffIndex]--, 1);
+        if (this[staffIndex] !== -1) {
+            this[staffs].splice(this[staffIndex]--, 1);
+        }
     }
 }
 
@@ -79,4 +95,25 @@ export class Cursor {
         not(this[owner][staffs][this[owner][staffIndex]].cursor.prevVoice()) &&
             this.prevStaff();
     }
+}
+
+function createBarsIterator(sheetMusic: SheetMusic) {
+    return {
+        *[Symbol.iterator]() {
+            let i = 0;
+
+            while (i < sheetMusic[bars].length) yield sheetMusic[bars][i++];
+        },
+    };
+}
+
+function emitChanges(sheetMusic: SheetMusic, index: number) {
+    sheetMusic.events.emit(SheetMusic.Events.change, {
+        index,
+        changedBars: function* () {
+            for (let bars of sheetMusic.bars) {
+                yield bars;
+            }
+        },
+    });
 }
