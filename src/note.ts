@@ -35,6 +35,7 @@ export class Note {
         readonly note: NoteName,
         readonly accidental = Accidental.Natural,
         readonly octave: Octave = 0,
+        readonly ghost = false,
     ) {}
 
     isEqual(note: Note): boolean {

@@ -2,87 +2,374 @@ import { not } from "logical-not";
 
 import { Note } from "./note";
 import { NoteValue } from "./note-value";
-import { Tuplet } from "./tuplet";
+import { Fraction } from "./tools/fraction";
 
-const position = Symbol("position");
-const item = Symbol("item");
-const itemPosition = Symbol("itemPosition");
+const { floor, pow: power, log2 } = Math;
+
+const node = Symbol("node");
+const nodeOffset = Symbol("offset");
 
 export class Part {
     readonly cursor = new Cursor(this);
 
-    [position] = 0;
-    [item] = new Item();
-    [itemPosition] = 0;
+    [node]: Node = new Spacer();
+    [nodeOffset] = Fraction.Zero;
 
-    get item(): Item {
-        return this[item];
+    // get node(): Node {
+    //     return this[node];
+    // }
+
+    insert(noteValue: NoteValue): Fraction {
+        return insert.call(this, new Item(noteValue));
     }
 
-    insert(noteValue: NoteValue): NoteValue {
-        const prevPosition = this[position];
-
-        const newItem = new Item(noteValue);
-        const newItemSpacer = new Item();
-
-        let nextItem: Item;
-
-        if (this[item].isSpacer) {
-            nextItem = this[item];
-
-            const delta = this[position] - this[itemPosition];
-
-            nextItem[value] = NoteValue.fromNumber(
-                nextItem[value].size - (delta + noteValue.size),
-            );
-            newItemSpacer[value] = NoteValue.fromNumber(delta);
-
-            this[itemPosition] = this[position];
-        } else {
-            nextItem = this[item][next] as Item;
-
-            this[position] = this[itemPosition] =
-                this[itemPosition] + this[item][value].size;
-        }
-
-        const prevItem = nextItem[prev];
-
-        link(prevItem, newItemSpacer);
-        link(newItemSpacer, newItem);
-        link(newItem, nextItem);
-
-        this[item] = newItem;
-
-        return NoteValue.fromNumber(this[position] - prevPosition);
+    changeNoteValue(noteValue: NoteValue): Fraction {
+        return Fraction.Zero;
     }
 
-    remove(): NoteValue {
-        if (not(this[item].isSpacer)) {
-            const prevPosition = this[position];
+    insertIrregularRhythm(): Fraction {
+        return insert.call(this, new IrregularRhythm());
+    }
 
-            const nextItem = this[item][next];
-            const prevItem = this[item][prev];
+    remove(): Fraction {
+        switch (this[node].constructor) {
+            default:
+                return Fraction.Zero;
+        }
+    }
 
-            unlink(this[item]);
+    insertNote(note: Note): void {}
 
-            this[item] = prevItem as Item;
-            this[position] = this[itemPosition];
-            this[itemPosition] -= this[item][value].size;
+    removeNote(note: Note): void {}
+}
 
-            link(prevItem, nextItem);
+function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
+    const newSpacer = new Spacer();
 
-            return NoteValue.fromNumber(this[position] - prevPosition);
+    let nextItem: Spacer;
+    let delta: Fraction;
+
+    switch (this[node].constructor) {
+        case Spacer:
+            newSpacer[value] = this[nodeOffset];
+
+            nextItem = this[node] as Spacer;
+            nextItem[value] = nextItem[value].subtract(this[nodeOffset]);
+
+            delta = this[nodeOffset];
+            break;
+
+        case Item:
+            nextItem = this[node][next] as Spacer;
+
+            delta = toFraction(this[node]).subtract(this[nodeOffset]);
+            break;
+
+        case IrregularRhythm:
+            nextItem = this[node][children][0] as Spacer;
+
+            delta = Fraction.Zero;
+            break;
+        default:
+            return Fraction.Zero;
+    }
+
+    const prevItem = nextItem[prev];
+
+    link(newNode, nextItem); //(!) set [parent] for newNode
+    link(newSpacer, newNode); //(!) set [parent] for newSpacer
+    link(prevItem, newSpacer);
+
+    if (newNode[parent]) {
+        const parentNode = newNode[parent] as Node;
+        const i = parentNode[children].indexOf(nextItem);
+
+        parentNode[children].splice(i, 0, newSpacer, newNode);
+    }
+
+    switch (newNode.constructor) {
+        case IrregularRhythm:
+            this[node] = newNode[children][0];
+            break;
+        default:
+            this[node] = newNode;
+
+            if (this[node][parent] instanceof IrregularRhythm)
+                updateIrregularRhythm.call(
+                    this[node][parent] as IrregularRhythm,
+                );
+    }
+
+    this[nodeOffset] = Fraction.Zero;
+
+    return delta;
+}
+
+export class Cursor {
+    constructor(private part: Part) {}
+
+    forward(delta: Fraction): void {
+        moveForward(this.part, delta);
+    }
+
+    backward(delta: Fraction): void {
+        moveBackward(this.part, delta);
+    }
+
+    next(): Fraction {
+        const delta = toFraction(this.part[node]).subtract(
+            this.part[nodeOffset],
+        );
+
+        moveForward(this.part, delta);
+
+        return delta;
+    }
+
+    prev(): Fraction {
+        let delta = this.part[nodeOffset];
+
+        const prevNode = getPrev(this.part[node]);
+
+        if (prevNode && not(prevNode instanceof IrregularRhythm)) {
+            delta = delta.add(toFraction(prevNode));
         }
 
-        return NoteValue.fromNumber(0);
+        moveBackward(this.part, delta);
+
+        return delta;
     }
 }
 
-function link(prevItem: Item | null, nextItem: Item | null): void {
-    if (prevItem?.isSpacer && nextItem?.isSpacer) {
-        prevItem[value] = NoteValue.fromNumber(
-            prevItem[value].size + nextItem[value].size,
+function moveForward(part: Part, delta: Fraction): void {
+    if (delta.compare("=", Fraction.Zero) && part[node] instanceof Spacer) {
+        const spacer = part[node] as Spacer;
+
+        if (spacer[value].compare("=", Fraction.Zero)) {
+            const nextNode = getNext(part[node]) as Node;
+
+            if (nextNode) {
+                part[node] = nextNode;
+            }
+        }
+    }
+
+    if (delta.compare(">", Fraction.Zero)) {
+        const currentNode = part[node];
+        const currentSize = toFraction(currentNode);
+
+        const nextNodeOffset = part[nodeOffset].add(delta);
+
+        if (nextNodeOffset.compare("<", currentSize)) {
+            part[nodeOffset] = nextNodeOffset;
+        } else {
+            const nextNode = getNext(currentNode);
+
+            if (nextNode) {
+                part[nodeOffset] = Fraction.Zero;
+                part[node] = nextNode;
+
+                moveForward(part, delta.subtract(currentSize));
+            } else {
+                part[nodeOffset] = delta;
+
+                if (part[nodeOffset].compare(">", currentSize)) {
+                    const spacer = currentNode as Spacer;
+
+                    spacer[value] = part[nodeOffset];
+                }
+            }
+        }
+    }
+}
+
+function moveBackward(part: Part, delta: Fraction): void {
+    if (isZero(delta) && isZero(part[nodeOffset])) {
+        const prevNode = getPrev(part[node]);
+
+        if (prevNode) {
+            part[node] = prevNode;
+            part[nodeOffset] =
+                prevNode instanceof IrregularRhythm
+                    ? Fraction.Zero
+                    : toFraction(prevNode);
+        }
+    }
+
+    if (delta.compare(">", Fraction.Zero)) {
+        if (part[nodeOffset].compare(">=", delta)) {
+            part[nodeOffset] = part[nodeOffset].subtract(delta);
+        } else {
+            const prevNode = getPrev(part[node]);
+
+            if (prevNode) {
+                part[node] = prevNode;
+                part[nodeOffset] = toFraction(prevNode);
+
+                moveBackward(part, delta);
+            } else {
+                part[nodeOffset] = Fraction.Zero;
+            }
+        }
+    }
+}
+
+const next = Symbol("next");
+const prev = Symbol("prev");
+const parent = Symbol("parent");
+const children = Symbol("children");
+
+export abstract class Node {
+    [next]: Node | null = null;
+    [prev]: Node | null = null;
+    [parent]: Node | null = null;
+    [children]: Node[] = [];
+
+    get next(): Node | null {
+        return this[next];
+    }
+
+    get prev(): Node | null {
+        return this[prev];
+    }
+
+    get parent(): Node | null {
+        return this[parent];
+    }
+
+    get children(): Node[] {
+        return this[children].slice();
+    }
+}
+
+function toFraction(node: Node): Fraction {
+    switch (node.constructor) {
+        case Item:
+            return (node as Item)[value].size;
+        case IrregularRhythm:
+            return (node as IrregularRhythm).value.size;
+        case Spacer:
+            return (node as Spacer)[value];
+    }
+
+    return Fraction.Zero;
+}
+
+const value = Symbol("value");
+
+export class Item extends Node {
+    [value]: NoteValue;
+
+    constructor(duration: NoteValue) {
+        super();
+
+        this[value] = duration;
+    }
+
+    get value(): NoteValue {
+        return this[value];
+    }
+}
+
+const index = Symbol("index");
+const factor = Symbol("factor");
+
+export class IrregularRhythm extends Node {
+    [index] = 3;
+    [factor]: Fraction;
+    [value] = NoteValue.fromNumber(0);
+
+    get index(): number {
+        return this[index];
+    }
+
+    get value(): NoteValue {
+        return this[value];
+    }
+
+    constructor() {
+        super();
+
+        this[children] = [new Spacer()];
+        this[children][0][parent] = this;
+    }
+}
+
+function updateIrregularRhythm(this: IrregularRhythm): void {
+    let noteValueSizeMax = Fraction.Zero;
+    let noteValueSizeSum = Fraction.Zero;
+
+    this[children].slice(0, -1).forEach(child => {
+        const size = toFraction(child);
+
+        if (not(child instanceof Spacer)) {
+            noteValueSizeMax = noteValueSizeMax.max(size);
+        }
+
+        noteValueSizeSum = noteValueSizeSum.add(size);
+    });
+
+    if (noteValueSizeMax.compare("!=", Fraction.Zero)) {
+        const noteQuantity = getIrregularRhythmNoteQuantity(
+            noteValueSizeSum.divide(noteValueSizeMax),
         );
+        const numerator = power(2, floor(log2(noteQuantity)));
+
+        this[index] = noteQuantity;
+        this[factor] = Fraction.create(numerator, noteQuantity);
+        this[value] = NoteValue.fromNumber(
+            noteValueSizeMax
+                .multiply(Fraction.create(this[index], 1))
+                .multiply(this[factor])
+                .valueOf(),
+        );
+    } else {
+        this[index] = 3;
+        this[factor] = Fraction.create(1, 1);
+        this[value] = NoteValue.fromNumber(0);
+    }
+
+    const lastChild = this.children[this.children.length - 1] as Spacer;
+
+    lastChild[value] = this[value].size
+        .divide(this[factor])
+        .subtract(noteValueSizeSum);
+
+    if (this[parent] instanceof IrregularRhythm)
+        updateIrregularRhythm.call(this[parent] as IrregularRhythm);
+}
+
+const three = Fraction.create(3, 1);
+
+function getIrregularRhythmNoteQuantity(source: Fraction): number {
+    if (source.compare("<=", three)) return 3;
+
+    let n = source.ceiling();
+
+    while (true) {
+        const exponent = log2(n);
+
+        if (exponent !== floor(exponent)) return n;
+        else n += 1;
+    }
+}
+
+export class Spacer extends Node {
+    [value] = Fraction.Zero;
+
+    get value(): Fraction {
+        return this[value];
+    }
+}
+
+function link(prevItem: Node | null, nextItem: Node | null): void {
+    if (prevItem && nextItem) {
+        if (prevItem[parent]) nextItem[parent] = prevItem[parent];
+        else if (nextItem[parent]) prevItem[parent] = nextItem[parent];
+    }
+
+    if (prevItem instanceof Spacer && nextItem instanceof Spacer) {
+        (prevItem as Spacer)[value].add((nextItem as Spacer)[value]);
 
         link(prevItem, nextItem[next]);
         unlink(nextItem);
@@ -92,206 +379,57 @@ function link(prevItem: Item | null, nextItem: Item | null): void {
     }
 }
 
-function unlink(item: Item): void {
-    if (item[prev]) (item[prev] as Item)[next] = null;
-    if (item[next]) (item[next] as Item)[prev] = null;
+function unlink(item: Node): void {
+    if (item[prev]) (item[prev] as Node)[next] = null;
+    if (item[next]) (item[next] as Node)[prev] = null;
 
     item[next] = item[prev] = null;
-}
 
-const next = Symbol("next");
-const prev = Symbol("prev");
-const value = Symbol("value");
-const tuplet = Symbol("tuplet");
-const index = Symbol("index");
+    if (item[parent]) {
+        const parentNode = item[parent] as Node;
+        const i = parentNode[children].indexOf(item);
 
-export class Item {
-    [next]: Item | null = null;
-    [prev]: Item | null = null;
+        parentNode[children].splice(i, 1);
 
-    [tuplet]: Note[][] = [];
-    [index]: number = 0;
-
-    [value]: NoteValue;
-
-    get isSpacer(): boolean {
-        return this[tuplet].length === 0;
-    }
-
-    get value(): NoteValue {
-        return this[value];
-    }
-
-    get tuplet(): Tuplet {
-        const instance = new Tuplet(this[value], this[tuplet].length);
-
-        this[tuplet].forEach((noteSet, i) => {
-            noteSet.forEach(note => {
-                instance.insertNote(note, i);
-            });
-        });
-
-        return instance;
-    }
-
-    constructor(noteValue = NoteValue.fromNumber(0)) {
-        this[value] = noteValue;
-
-        if (noteValue.size > 0) this[tuplet] = [[]];
+        item[parent] = null;
     }
 }
 
-export class Cursor {
-    constructor(private part: Part) {}
+function getNext(node: Node | null): Node | null {
+    if (node === null) return null;
 
-    forward(noteValue: NoteValue): void {
-        moveForward(this.part, noteValue.size);
+    if (node instanceof IrregularRhythm) {
+        const irregularRhythm = node as IrregularRhythm;
+        const firstChild = irregularRhythm[children][0];
+
+        return firstChild;
     }
 
-    backward(noteValue: NoteValue): void {
-        moveBackward(this.part, noteValue.size);
+    if (not(node[next]) && node[parent]) {
+        return (node[parent] as Node)[next];
     }
 
-    next(): NoteValue {
-        const { part } = this;
-
-        const prevPosition = part[position];
-        const currentSize = part[item][value].size;
-        const delta = currentSize - (part[position] - part[itemPosition]);
-
-        moveForward(part, delta);
-
-        return NoteValue.fromNumber(part[position] - prevPosition);
-    }
-
-    prev(): NoteValue {
-        const { part } = this;
-
-        const prevPosition = part[position];
-        const delta = part[position] - part[itemPosition];
-
-        moveBackward(part, delta);
-
-        return NoteValue.fromNumber(part[position] - prevPosition);
-    }
-
-    insertNote(note: Note): void {
-        const partItem = this.part[item];
-
-        if (not(partItem.isSpacer)) {
-            const notes = partItem[tuplet][partItem[index]];
-
-            if (notes.every(item => not(item.isEqual(note)))) {
-                notes.push(note);
-            }
-        }
-    }
-
-    removeNote(note: Note): void {
-        const partItem = this.part[item];
-
-        if (not(partItem.isSpacer)) {
-            const notes = partItem[tuplet][partItem[index]];
-            const i = notes.findIndex(item => item.isEqual(note));
-
-            notes.splice(i, 1);
-        }
-    }
-
-    changeNoteValue(noteValue: NoteValue): void {
-        const partItem = this.part[item];
-
-        if (not(partItem.isSpacer)) {
-            partItem[value] = noteValue;
-        }
-    }
-
-    setTupletIndex(index_: number): void {
-        const partItem = this.part[item];
-
-        if (not(partItem.isSpacer)) {
-            for (let i = 0, lim = Tuplet.verify(index_); i < lim; i++) {
-                partItem[tuplet][i] = partItem[tuplet][i] || [];
-            }
-
-            if (partItem[index] >= partItem[tuplet].length) {
-                partItem[index] = partItem[tuplet].length - 1;
-            }
-        }
-    }
+    return node[next] as Node;
 }
 
-function moveForward(part: Part, delta: number): void {
-    if (
-        delta === 0 &&
-        part[item].isSpacer &&
-        part[item][value].size === 0 &&
-        part[item][next]
-    ) {
-        part[item] = part[item][next] as Item;
+function getPrev(node: Node | null): Node | null {
+    if (node === null) return null;
+
+    if (node[prev] instanceof IrregularRhythm) {
+        const irregularRhythm = node[prev] as IrregularRhythm;
+        const lastChild =
+            irregularRhythm[children][irregularRhythm[children].length - 1];
+
+        return lastChild;
     }
 
-    if (delta > 0) {
-        const currentItem = part[item];
-        const nextItem = currentItem[next];
-        const nextPosition = part[itemPosition] + currentItem.value.size;
-
-        if (part[position] + delta < nextPosition) {
-            part[position] += delta;
-        } else if (nextItem) {
-            const nextDelta = delta - (nextPosition - part[position]);
-
-            delta = nextDelta >= 0 ? nextDelta : delta;
-
-            part[position] = part[itemPosition] = nextPosition;
-            part[item] = nextItem;
-
-            moveForward(part, delta);
-        } else {
-            part[item][value] = part[item][value].expand(
-                NoteValue.fromNumber(delta - currentItem.value.size),
-            );
-            part[position] = part[itemPosition] + part[item][value].size;
-        }
+    if (not(node[prev]) && node[parent]) {
+        return node[parent] as Node;
     }
+
+    return node[prev] as Node;
 }
 
-function moveBackward(part: Part, delta: number, didJump = false): void {
-    if (
-        delta === 0 &&
-        part[item].isSpacer &&
-        part[item][value].size === 0 &&
-        part[item][prev]
-    ) {
-        part[item] = part[item][prev] as Item;
-    }
-
-    if (delta > 0) {
-        const prevItem = part[item][prev];
-
-        if (part[position] - delta >= part[itemPosition]) {
-            part[position] -= delta;
-
-            if (
-                part[position] === part[itemPosition] &&
-                prevItem &&
-                not(didJump)
-            ) {
-                part[itemPosition] -= prevItem.value.size;
-                part[item] = prevItem;
-            }
-        } else if (prevItem) {
-            const currentDecrease = part[position] - part[itemPosition];
-
-            delta -= currentDecrease;
-
-            part[position] -= currentDecrease;
-            part[itemPosition] -= prevItem.value.size;
-            part[item] = prevItem;
-
-            moveBackward(part, delta, true);
-        } else {
-            part[position] = part[itemPosition] = 0;
-        }
-    }
+function isZero(fraction: Fraction): boolean {
+    return fraction.compare("=", Fraction.Zero);
 }

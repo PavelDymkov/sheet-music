@@ -5,11 +5,12 @@
         "build": "npm run clean && tsc",
         "clean": "rimraf package/lib",
         "generate-documentation": "rimraf documentation/api && typedoc src",
-        "start": "exit 1",
+        "start": "npm run clean && tsc -w",
         "test": "npm run build && tsc --project tsconfig.test.json && mocha test/**/*.js"
     },
     "dependencies": {
         "eventemitter3": "^4.0.7",
+        "fraction.js": "^4.0.13",
         "logical-not": "^1.0.7"
     },
     "devDependencies": {

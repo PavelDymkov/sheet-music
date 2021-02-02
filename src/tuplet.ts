@@ -1,75 +1,33 @@
-import { not } from "logical-not";
-
-import { Note } from "./note";
 import { NoteSet } from "./note-set";
 import { NoteValue } from "./note-value";
 
-const tupletIndexes: number[] = [1];
-
-for (let i = 3, lim = 17; i <= lim; i++) {
-    const exponent = Math.log2(i);
-
-    if (exponent !== Math.floor(exponent)) {
-        tupletIndexes.push(i);
-    }
-}
-
 const items = Symbol();
-const value = Symbol();
+const index = Symbol();
 
 export class Tuplet {
-    static verify(index: number): number {
-        return tupletIndexes[index + 1] || -1;
-    }
+    readonly [items]: (NoteSet | Tuplet)[];
+    readonly [index]: number;
 
-    [items]: NoteSet[] = [];
-    [value]: NoteValue;
-
-    get items(): NoteSet[] {
+    get items(): (NoteSet | Tuplet)[] {
         return [...this[items]];
     }
 
-    get value(): NoteValue {
-        return this[value];
-    }
-
     get index(): number {
-        return tupletIndexes[this[items].length - 1];
+        return this[index];
     }
 
-    constructor(noteValue: NoteValue, index = 1) {
-        this[value] = noteValue;
+    get irregular(): boolean {
+        const exponent = Math.log2(this[index]);
 
-        if (tupletIndexes.indexOf(index) === -1) {
-            index = 1;
-        }
-
-        for (let i = 0, lim = index; i < lim; i++) {
-            this[items].push(new NoteSet());
-        }
+        return exponent === Math.floor(exponent);
     }
 
-    insertNote(note: Note, index: number): void {
-        const noteSet = this[items][index];
-
-        if (noteSet && noteSet instanceof NoteSet) {
-            noteSet.insert(note);
-        }
+    constructor(sourceItems: (NoteSet | Tuplet)[], rhythmIndex = 1) {
+        this[items] = sourceItems;
+        this[index] = rhythmIndex > 1 ? Math.floor(rhythmIndex) : 1;
     }
 
-    removeNote(note: Note, index: number): void {
-        const noteSet = this[items][index];
-
-        if (noteSet && noteSet instanceof NoteSet) {
-            noteSet.remove(note);
-        }
-    }
-
-    copy(noteValue: NoteValue): Tuplet {
-        const copy = new Tuplet(noteValue, this.index);
-
-        copy[items] = this[items];
-
-        return copy;
+    at(i: number): NoteSet | Tuplet {
+        return this[items][i] || new NoteSet(NoteValue.create());
     }
 }

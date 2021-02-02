@@ -1,6 +1,6 @@
 import { ok } from "assert";
 
-import { Part, Item } from "../package/lib/part";
+import { Part, Item, Spacer } from "../package/lib/part";
 import { NoteValue } from "../package/lib/note-value";
 
 describe("sheet-music/part", () => {
@@ -34,27 +34,27 @@ describe("sheet-music/part", () => {
 
         part.insert(NoteValue.Eight);
 
-        const note1 = part.item;
+        const note1 = part.node;
 
         part.insert(NoteValue.Quarter);
 
-        const note2 = part.item;
+        const note2 = part.node;
 
         part.cursor.forward(NoteValue.Quarter);
 
-        ok(part.item.isSpacer);
+        ok(part.node instanceof Spacer);
 
         part.cursor.backward(NoteValue.Eight);
 
-        ok(part.item === note2);
+        ok(part.node === note2);
 
         part.cursor.backward(NoteValue.Eight);
 
-        ok(part.item.isSpacer);
+        ok(part.node instanceof Spacer);
 
         part.cursor.backward(NoteValue.Eight);
 
-        ok(part.item === note1);
+        ok(part.node === note1);
 
         contains(part, [
             spacer(),
@@ -63,6 +63,10 @@ describe("sheet-music/part", () => {
             NoteValue.Quarter,
             spacer(),
         ]);
+    });
+
+    it("should test parent and children", () => {
+        // code...
     });
 
     it("should test some sequence #1", () => {

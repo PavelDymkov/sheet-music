@@ -27,7 +27,7 @@ export class TimeSignature {
     get barValue(): NoteValue {
         if (not(this[barValue])) {
             const size = this.upper.reduce(
-                (rest, item) => this.lower.size * item + rest,
+                (rest, item) => this.lower.size.valueOf() * item + rest,
                 0,
             );
 

@@ -1,5 +1,6 @@
 import { NoteValue } from "./note-value";
 import { Part } from "./part";
+import { Fraction } from "./tools/fraction";
 
 const main = Symbol();
 const extra = Symbol();
@@ -15,7 +16,7 @@ export class Staff {
     [voice]: Part = this[main];
     [dependent]: Part = this[extra];
 
-    insert(noteValue: NoteValue): NoteValue {
+    insert(noteValue: NoteValue): Fraction {
         const diff = this[voice].insert(noteValue);
 
         this[dependent].cursor.forward(diff);
@@ -23,7 +24,7 @@ export class Staff {
         return diff;
     }
 
-    remove(): NoteValue {
+    remove(): Fraction {
         const diff = this[voice].remove();
 
         this[dependent].cursor.backward(diff);
@@ -35,17 +36,17 @@ export class Staff {
 export class StaffCursor {
     constructor(private staff: Staff) {}
 
-    forward(noteValue: NoteValue): void {
-        this.staff[main].cursor.forward(noteValue);
-        this.staff[extra].cursor.forward(noteValue);
+    forward(delta: Fraction): void {
+        this.staff[main].cursor.forward(delta);
+        this.staff[extra].cursor.forward(delta);
     }
 
-    backward(noteValue: NoteValue): void {
-        this.staff[main].cursor.backward(noteValue);
-        this.staff[extra].cursor.backward(noteValue);
+    backward(delta: Fraction): void {
+        this.staff[main].cursor.backward(delta);
+        this.staff[extra].cursor.backward(delta);
     }
 
-    next(): NoteValue {
+    next(): Fraction {
         const diff = this.staff[voice].cursor.next();
 
         this.staff[dependent].cursor.forward(diff);
@@ -53,7 +54,7 @@ export class StaffCursor {
         return diff;
     }
 
-    prev(): NoteValue {
+    prev(): Fraction {
         const diff = this.staff[voice].cursor.prev();
 
         this.staff[dependent].cursor.backward(diff);

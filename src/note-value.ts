@@ -1,6 +1,7 @@
 import { not } from "logical-not";
 
 import { TimeSignature } from "./time-signature";
+import { Fraction } from "./tools/fraction";
 
 enum NoteValueName {
     Maxima = "maxima",
@@ -29,16 +30,23 @@ const noteValueNames = [
 ];
 
 const noteValueCache = {} as Record<number, NoteValue>;
-const noteValueNameSizeMap = {} as Record<NoteValueName, number>;
+const noteValueNameSizeMap = {
+    toNumber: {} as Record<NoteValueName, number>,
+    toFraction: {} as Record<NoteValueName, Fraction>,
+};
 
-noteValueNames.forEach(
-    (noteValueName, i) =>
-        (noteValueNameSizeMap[noteValueName] = Math.pow(2, i + 1)),
-);
+noteValueNames.forEach((noteValueName, i) => {
+    const n = Math.pow(2, i + 1);
+
+    noteValueNameSizeMap.toNumber[noteValueName] = n;
+    noteValueNameSizeMap.toFraction[noteValueName] = Fraction.create(n, 1);
+});
+
+const oneAndHalf = Fraction.create(3, 2);
 
 const token = Symbol();
-const set = Symbol();
-const sizeCache = Symbol();
+const set = Symbol("set");
+const sizeCache = Symbol("sizeCache");
 
 export class NoteValue {
     static create(): NoteValue {
@@ -56,7 +64,7 @@ export class NoteValue {
 
                 const maxNoteValueName =
                     noteValueNames[noteValueNames.length - 1];
-                const maxSize = noteValueNameSizeMap[maxNoteValueName];
+                const maxSize = noteValueNameSizeMap.toNumber[maxNoteValueName];
 
                 let counter = size;
 
@@ -68,7 +76,7 @@ export class NoteValue {
 
                 for (let i = noteValueNames.length - 2; i >= 0; i--) {
                     const current = noteValueNames[i];
-                    const currentSize = noteValueNameSizeMap[current];
+                    const currentSize = noteValueNameSizeMap.toNumber[current];
 
                     if (counter >= currentSize) {
                         instance[set].push(current);
@@ -91,7 +99,9 @@ export class NoteValue {
     }
 
     static dotted(noteValue: NoteValue): NoteValue {
-        return NoteValue.fromNumber(noteValue.size * 1.5);
+        return NoteValue.fromNumber(
+            noteValue.size.multiply(oneAndHalf).valueOf(),
+        );
     }
 
     static Maxima = create(NoteValueName.Maxima);
@@ -106,14 +116,14 @@ export class NoteValue {
     static SixtyFourth = create(NoteValueName.SixtyFourth);
 
     [set]: NoteValueName[] = [];
-    [sizeCache]: number = -1;
+    [sizeCache]: Fraction;
 
-    get size(): number {
-        if (this[sizeCache] === -1) {
+    get size(): Fraction {
+        if (not(this[sizeCache])) {
             this[sizeCache] = this[set].reduce(
                 (size, noteValueName) =>
-                    size + noteValueNameSizeMap[noteValueName],
-                0,
+                    size.add(noteValueNameSizeMap.toFraction[noteValueName]),
+                Fraction.Zero,
             );
         }
 
@@ -133,45 +143,36 @@ export class NoteValue {
         }
     }
 
-    expand(noteValue: NoteValue): NoteValue {
-        return NoteValue.fromNumber(this.size + noteValue.size);
-    }
-
-    shrink(noteValue: NoteValue): NoteValue {
-        return NoteValue.fromNumber(this.size - noteValue.size);
-    }
-
     split(timeSignature: TimeSignature, offset?: NoteValue): NoteValue[] {
         const array: NoteValue[] = [];
 
         const barSize = timeSignature.barValue.size;
 
-        let size = barSize - (offset ? offset.size : 0);
+        let size = barSize.subtract(offset ? offset.size : Fraction.Zero);
         let currentNoteValue = NoteValue.fromNumber(0);
 
         this[set].forEach(noteValueName => {
-            let currentSize = noteValueNameSizeMap[noteValueName];
+            let currentSize = noteValueNameSizeMap.toFraction[noteValueName];
 
-            if (currentSize <= size) {
-                size -= currentSize;
+            if (currentSize.compare("<=", size)) {
+                size = size.subtract(currentSize);
 
-                currentNoteValue = currentNoteValue.expand(
-                    NoteValue.fromNumber(currentSize),
+                currentNoteValue = fromFraction(
+                    currentNoteValue.size.add(currentSize),
                 );
             } else {
-                array.push(currentNoteValue.expand(NoteValue.fromNumber(size)));
+                array.push(fromFraction(currentNoteValue.size.add(size)));
 
-                currentSize -= size;
+                currentSize.subtract(size);
 
                 while (currentSize > barSize) {
-                    array.push(NoteValue.fromNumber(barSize));
+                    array.push(fromFraction(barSize));
 
-                    currentSize -= barSize;
+                    currentSize.subtract(barSize);
                 }
 
-                size = barSize - currentSize;
-
-                currentNoteValue = NoteValue.fromNumber(currentSize);
+                size = barSize.subtract(currentSize);
+                currentNoteValue = fromFraction(currentSize);
             }
         });
 
@@ -184,9 +185,13 @@ export class NoteValue {
 }
 
 function create(noteValueName: NoteValueName): NoteValue {
-    return NoteValue.fromNumber(noteValueNameSizeMap[noteValueName]);
+    return NoteValue.fromNumber(noteValueNameSizeMap.toNumber[noteValueName]);
 }
 
 function indexOf(noteValueName: NoteValueName): number {
     return noteValueNames.indexOf(noteValueName);
+}
+
+function fromFraction(source: Fraction): NoteValue {
+    return NoteValue.fromNumber(source.valueOf());
 }
