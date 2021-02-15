@@ -81,6 +81,12 @@ export class Fraction {
         return this.compare(">=", fraction) ? this : fraction;
     }
 
+    negative(): Fraction {
+        return Object.assign(new Fraction(token), {
+            [value]: this[value].neg(),
+        });
+    }
+
     valueOf(): number {
         return this[value].valueOf();
     }

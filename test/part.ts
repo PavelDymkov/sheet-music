@@ -1,13 +1,22 @@
 import { ok } from "assert";
 
-import { Part, Item, Spacer } from "../package/lib/part";
+import { Part, Spacer } from "../package/lib/part";
 import { NoteValue } from "../package/lib/note-value";
+import { Fraction } from "../package/lib/tools/fraction";
+
+import {
+    partAssertion,
+    spacer,
+    note,
+    tuplet,
+    cursor,
+} from "./tools/part-comparator";
 
 describe("sheet-music/part", () => {
     it("should check empty part", () => {
         const part = new Part();
 
-        contains(part, [spacer()]);
+        partAssertion(part, [spacer()]);
     });
 
     it("should insert eight note", () => {
@@ -15,7 +24,12 @@ describe("sheet-music/part", () => {
 
         part.insert(NoteValue.Eight);
 
-        contains(part, [spacer(), NoteValue.Eight, spacer()]);
+        partAssertion(part, [
+            spacer(),
+            cursor(),
+            note(NoteValue.Eight),
+            spacer(),
+        ]);
     });
 
     it("should remove last inserted", () => {
@@ -26,7 +40,12 @@ describe("sheet-music/part", () => {
 
         part.remove();
 
-        contains(part, [spacer(), NoteValue.Eight, spacer()]);
+        partAssertion(part, [
+            spacer(),
+            note(NoteValue.Eight),
+            cursor(),
+            spacer(),
+        ]);
     });
 
     it("should test cursor forward and backward", () => {
@@ -34,97 +53,59 @@ describe("sheet-music/part", () => {
 
         part.insert(NoteValue.Eight);
 
-        const note1 = part.node;
+        const note1 = part.cursor.node;
 
         part.insert(NoteValue.Quarter);
 
-        const note2 = part.node;
+        const note2 = part.cursor.node;
 
-        part.cursor.forward(NoteValue.Quarter);
+        part.cursor.forward(NoteValue.Quarter.size);
 
-        ok(part.node instanceof Spacer);
+        ok(part.cursor.node instanceof Spacer);
 
-        part.cursor.backward(NoteValue.Eight);
+        part.cursor.backward(NoteValue.Eight.size);
 
-        ok(part.node === note2);
+        ok(part.cursor.node === note2);
 
-        part.cursor.backward(NoteValue.Eight);
+        part.cursor.backward(NoteValue.Eight.size);
 
-        ok(part.node instanceof Spacer);
+        ok(part.cursor.node === note2);
 
-        part.cursor.backward(NoteValue.Eight);
+        part.cursor.backward(Fraction.Zero);
 
-        ok(part.node === note1);
+        ok(part.cursor.node instanceof Spacer);
 
-        contains(part, [
+        part.cursor.backward(NoteValue.Sixteenth.size);
+
+        ok(part.cursor.node === note1);
+
+        partAssertion(part, [
             spacer(),
-            NoteValue.Eight,
+            cursor({ offset: NoteValue.Sixteenth.size }),
+            note(NoteValue.Eight),
             spacer(),
-            NoteValue.Quarter,
+            note(NoteValue.Quarter),
             spacer(),
         ]);
-    });
-
-    it("should test parent and children", () => {
-        // code...
     });
 
     it("should test some sequence #1", () => {
         const part = new Part();
 
-        part.cursor.forward(NoteValue.Half);
-        part.cursor.backward(NoteValue.dotted(NoteValue.Quarter));
+        part.cursor.forward(NoteValue.Half.size);
+        part.cursor.backward(NoteValue.dotted(NoteValue.Quarter).size);
+
         part.insert(NoteValue.Quarter);
 
-        contains(part, [
-            spacer(NoteValue.Eight),
-            NoteValue.Quarter,
-            spacer(NoteValue.Eight),
+        partAssertion(part, [
+            spacer(NoteValue.Eight.size),
+            cursor(),
+            note(NoteValue.Quarter),
+            spacer(NoteValue.Eight.size),
         ]);
     });
+
+    // it("should ", () => {
+    //     // code...
+    // });
 });
-
-type PartItemExpect = NoteValue | string;
-
-function contains(part: Part, expected: PartItemExpect[]): void {
-    const [, itemKey] = Object.getOwnPropertySymbols(part);
-
-    const currentItem = part[itemKey] as Item;
-
-    const [nextKey, prevKey] = Object.getOwnPropertySymbols(currentItem);
-
-    const items: Item[] = [currentItem];
-
-    let item;
-
-    item = currentItem;
-
-    while ((item = item[nextKey])) items.push(item);
-
-    item = currentItem;
-
-    while ((item = item[prevKey])) items.unshift(item);
-
-    ok(items.length === expected.length);
-
-    items.forEach((item, i) => {
-        const [, , , , valueKey] = Object.getOwnPropertySymbols(item);
-
-        if (item.isSpacer) {
-            ok(expected[i] === spacer(item[valueKey]));
-        } else {
-            const actual = item[valueKey] as NoteValue;
-            const expect = expected[i] as NoteValue;
-
-            ok(actual instanceof NoteValue);
-            ok(expect instanceof NoteValue);
-            ok(actual.size === expect.size);
-        }
-    });
-}
-
-function spacer(value?: NoteValue): string {
-    const size = value ? value.size : 0;
-
-    return `spacer (${size})`;
-}

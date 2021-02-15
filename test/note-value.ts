@@ -12,34 +12,11 @@ describe("sheet-music/note-value", () => {
     });
 
     it("should test NoteValue.fromNumber()", () => {
-        ok(NoteValue.fromNumber(NoteValue.Eight.size) === NoteValue.Eight);
-        ok(NoteValue.fromNumber(0) === NoteValue.fromNumber(-1));
-    });
-
-    it("should check NoteValue.expand()", () => {
-        consistsOf(NoteValue.Half.expand(NoteValue.Eight), [
-            NoteValue.Half,
-            NoteValue.Eight,
-        ]);
-        consistsOf(NoteValue.Half.expand(NoteValue.Quarter), [
-            NoteValue.dotted(NoteValue.Half),
-        ]);
-    });
-
-    it("should check NoteValue.shrink()", () => {
-        consistsOf(NoteValue.Half.shrink(NoteValue.Quarter), [
-            NoteValue.Quarter,
-        ]);
-        consistsOf(NoteValue.Half.shrink(NoteValue.Eight), [
-            NoteValue.dotted(NoteValue.Quarter),
-        ]);
-    });
-
-    it("should check NoteValue.size getter", () => {
         ok(
-            NoteValue.Half.shrink(NoteValue.Quarter).size ===
-                NoteValue.Quarter.size,
+            NoteValue.fromNumber(NoteValue.Eight.size.valueOf()) ===
+                NoteValue.Eight,
         );
+        ok(NoteValue.fromNumber(0) === NoteValue.fromNumber(-1));
     });
 
     it("should check NoteValue.split() #1", () => {
@@ -68,45 +45,7 @@ describe("sheet-music/note-value", () => {
         ),
             [NoteValue.Quarter, NoteValue.Whole, NoteValue.Quarter];
     });
-
-    it("should check combining of note values #1", () => {
-        const noteValue = NoteValue.Half.expand(NoteValue.Quarter)
-            .expand(NoteValue.Eight)
-            .expand(NoteValue.Eight);
-
-        consistsOf(noteValue, [NoteValue.Whole]);
-    });
-
-    it("should check combining of note values #2", () => {
-        const noteValue = NoteValue.Maxima.expand(NoteValue.Longa).expand(
-            NoteValue.Longa,
-        );
-
-        consistsOf(noteValue, [NoteValue.Maxima, NoteValue.Maxima]);
-    });
-
-    it("should check combining of note values #3", () => {
-        const noteValue = NoteValue.Eight.expand(NoteValue.Half)
-            .expand(NoteValue.Sixteenth)
-            .expand(NoteValue.Quarter);
-
-        consistsOf(noteValue, [
-            NoteValue.dotted(NoteValue.Half),
-            NoteValue.dotted(NoteValue.Eight),
-        ]);
-    });
-
-    // it("should check combining of note values #", () => {});
 });
-
-function consistsOf(noteValue: NoteValue, expectedArray: NoteValue[]): void {
-    const expectedSize = expectedArray.reduce(
-        (sum, item) => sum + item.size,
-        0,
-    );
-
-    ok(noteValue.size === expectedSize);
-}
 
 function checkSplitted(
     actualArray: NoteValue[],

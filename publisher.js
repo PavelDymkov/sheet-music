@@ -1,39 +1,20 @@
 const readArgs = require("arg");
+const chalk = require("chalk");
 
+const { cd, exec, exit } = require("shelljs");
 const { readFileSync: read, writeFileSync: write } = require("fs");
 const { not } = require("logical-not");
-const { question } = require("readline-sync");
-const { cd, echo, exec, exit, which } = require("shelljs");
 
-const args = readArgs({ "--patch": String, "--no-git-push": Boolean });
+if (not(exec("git branch").stdout.includes("master"))) {
+    console.log(chalk.red.bold("Error!"));
+    console.log(chalk.red("git branch not master"));
 
-// Set current directory
+    exit(0);
+}
 
-cd(__dirname);
-
-// Check NPM User
-
-const currentNpmUser = exec("npm whoami", { silent: true }).toString().trim();
-
-const answer = question(
-    `Please confirm publishing by user "${currentNpmUser}" [Y/n] `,
-)
-    .toString()
-    .trim()
-    .toLowerCase();
-
-if (not(["yes", "y"].includes(answer))) exit(0);
-
-// Test
-echo("Test running...");
+const args = readArgs({ "--version": String });
 
 exec("npm run test");
-
-echo("Test complete");
-
-// Dependencies
-
-echo("Dependencies copying...");
 
 const dependenciesMatcher = /"dependencies"\s*:\s*{(?:[^}])*}/;
 
@@ -47,58 +28,17 @@ const packageJson = read("package/package.json")
 
 write("package/package.json", packageJson);
 
-echo("Dependencies copied");
-
-// Go to package directory
-
 cd("package");
 
-// Patch version if --patch
+let { "--version": versionAction } = args;
 
-let { "--patch": patchType } = args;
-
-if (not(["major", "minor", "patch"].includes(patchType))) {
-    if (patchType) echo(`--patch="${patchType}" is invalid and ignoring`);
-
-    patchType = null;
+if (not(["major", "minor"].includes(versionAction))) {
+    versionAction = "patch";
 }
 
-if (patchType) {
-    echo(`Version patching by --patch="${patchType}"`);
+exec(`npm version ${versionAction}`);
+exec(`npm publish`);
 
-    exec(`npm version ${patchType}`);
+cd("..");
 
-    echo("Version patched");
-}
-
-// Deploy
-
-echo("Deploying...");
-
-exec("npm deploy");
-
-echo("Deploy complete");
-
-// Patch version if NOT --patch
-
-if (not(patchType)) {
-    echo("Version patching...");
-
-    exec(`npm version patch`);
-
-    echo("Version patched");
-}
-
-// Git push
-
-if (not(args["--no-git-push"]) && which("git")) {
-    echo("Pushing to Git...");
-
-    exec(`git push`);
-
-    echo("Git Push complete");
-}
-
-// Complete
-
-echo("Successful complete");
+exec(`git push`);

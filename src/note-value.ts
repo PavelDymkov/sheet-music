@@ -163,12 +163,12 @@ export class NoteValue {
             } else {
                 array.push(fromFraction(currentNoteValue.size.add(size)));
 
-                currentSize.subtract(size);
+                currentSize = currentSize.subtract(size);
 
                 while (currentSize > barSize) {
                     array.push(fromFraction(barSize));
 
-                    currentSize.subtract(barSize);
+                    currentSize = currentSize.subtract(barSize);
                 }
 
                 size = barSize.subtract(currentSize);

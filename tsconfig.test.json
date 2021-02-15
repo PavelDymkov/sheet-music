@@ -2,9 +2,11 @@
     "compilerOptions": {
         "declaration": false,
         "declarationDir": null,
-        "target": "ES5",
+        "target": "ES2020",
         "types": ["node", "mocha"],
-        "lib": ["ES2020"]
+        "lib": ["ES2020"],
+        "module": "CommonJS",
+        "moduleResolution": "node"
     },
 
     "include": ["./test/**/*.ts"]

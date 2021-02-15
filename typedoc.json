@@ -1,5 +1,6 @@
 {
     "name": "Sheet Music DevKit",
+    "entryPoints": ["src"],
     "out": "./documentation/api/",
     "theme": "default"
 }

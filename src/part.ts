@@ -15,15 +15,29 @@ export class Part {
     [node]: Node = new Spacer();
     [nodeOffset] = Fraction.Zero;
 
-    // get node(): Node {
-    //     return this[node];
-    // }
-
     insert(noteValue: NoteValue): Fraction {
         return insert.call(this, new Item(noteValue));
     }
 
     changeNoteValue(noteValue: NoteValue): Fraction {
+        if (this[node] instanceof Item) {
+            const itemNode = this[node] as Item;
+
+            if (itemNode[value] !== noteValue) {
+                let offset = noteValue.size.subtract(itemNode[value].size);
+
+                itemNode[value] = noteValue;
+
+                for (let parentNode of iterateParents(itemNode)) {
+                    updateIrregularRhythm.call(parentNode);
+
+                    offset = offset.multiply(parentNode[factor]);
+                }
+
+                return offset;
+            }
+        }
+
         return Fraction.Zero;
     }
 
@@ -32,15 +46,37 @@ export class Part {
     }
 
     remove(): Fraction {
-        switch (this[node].constructor) {
-            default:
-                return Fraction.Zero;
+        if (this[node] instanceof Spacer) {
+            return Fraction.Zero;
+        } else {
+            debugger;
+            const prevSpacer = this[node][prev] as Spacer;
+            const nextSpacer = this[node][next] as Spacer;
+
+            const offset = this[nodeOffset];
+
+            this[nodeOffset] = prevSpacer[value];
+
+            unlink(this[node]);
+
+            link(prevSpacer, nextSpacer);
+
+            this[node] = nextSpacer;
+
+            return offset;
         }
     }
 
     insertNote(note: Note): void {}
 
     removeNote(note: Note): void {}
+
+    *iterate(): Generator<Node> {
+        let currentNode: Node | null = this[node];
+
+        do yield currentNode;
+        while ((currentNode = currentNode[next]));
+    }
 }
 
 function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
@@ -51,12 +87,19 @@ function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
 
     switch (this[node].constructor) {
         case Spacer:
-            newSpacer[value] = this[nodeOffset];
-
             nextItem = this[node] as Spacer;
-            nextItem[value] = nextItem[value].subtract(this[nodeOffset]);
 
-            delta = this[nodeOffset];
+            setNextItemSize: {
+                const size = nextItem[value]
+                    .subtract(toFraction(newNode))
+                    .subtract(this[nodeOffset]);
+
+                nextItem[value] = size.compare(">", Fraction.Zero)
+                    ? size
+                    : Fraction.Zero;
+            }
+
+            delta = newSpacer[value] = this[nodeOffset];
             break;
 
         case Item:
@@ -66,7 +109,7 @@ function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
             break;
 
         case IrregularRhythm:
-            nextItem = this[node][children][0] as Spacer;
+            nextItem = (this[node] as IrregularRhythm)[children][0] as Spacer;
 
             delta = Fraction.Zero;
             break;
@@ -81,7 +124,7 @@ function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
     link(prevItem, newSpacer);
 
     if (newNode[parent]) {
-        const parentNode = newNode[parent] as Node;
+        const parentNode = newNode[parent] as IrregularRhythm;
         const i = parentNode[children].indexOf(nextItem);
 
         parentNode[children].splice(i, 0, newSpacer, newNode);
@@ -89,7 +132,7 @@ function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
 
     switch (newNode.constructor) {
         case IrregularRhythm:
-            this[node] = newNode[children][0];
+            this[node] = (newNode as IrregularRhythm)[children][0];
             break;
         default:
             this[node] = newNode;
@@ -106,14 +149,20 @@ function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
 }
 
 export class Cursor {
+    get node(): Node {
+        return this.part[node];
+    }
+
     constructor(private part: Part) {}
 
     forward(delta: Fraction): void {
-        moveForward(this.part, delta);
+        if (delta.compare(">=", Fraction.Zero)) moveForward(this.part, delta);
+        else moveBackward(this.part, delta.negative());
     }
 
     backward(delta: Fraction): void {
-        moveBackward(this.part, delta);
+        if (delta.compare(">=", Fraction.Zero)) moveBackward(this.part, delta);
+        else moveForward(this.part, delta.negative());
     }
 
     next(): Fraction {
@@ -222,8 +271,7 @@ const children = Symbol("children");
 export abstract class Node {
     [next]: Node | null = null;
     [prev]: Node | null = null;
-    [parent]: Node | null = null;
-    [children]: Node[] = [];
+    [parent]: IrregularRhythm | null = null;
 
     get next(): Node | null {
         return this[next];
@@ -233,12 +281,8 @@ export abstract class Node {
         return this[prev];
     }
 
-    get parent(): Node | null {
+    get parent(): IrregularRhythm | null {
         return this[parent];
-    }
-
-    get children(): Node[] {
-        return this[children].slice();
     }
 }
 
@@ -275,9 +319,15 @@ const index = Symbol("index");
 const factor = Symbol("factor");
 
 export class IrregularRhythm extends Node {
+    [children]: Node[] = [];
+
     [index] = 3;
     [factor]: Fraction;
     [value] = NoteValue.fromNumber(0);
+
+    get children(): Node[] {
+        return this[children].slice();
+    }
 
     get index(): number {
         return this[index];
@@ -292,6 +342,13 @@ export class IrregularRhythm extends Node {
 
         this[children] = [new Spacer()];
         this[children][0][parent] = this;
+    }
+
+    *iterate(): Generator<Node> {
+        let currentNode: Node | null = this[children][0];
+
+        do yield currentNode;
+        while ((currentNode = currentNode[next]));
     }
 }
 
@@ -362,36 +419,42 @@ export class Spacer extends Node {
     }
 }
 
-function link(prevItem: Node | null, nextItem: Node | null): void {
-    if (prevItem && nextItem) {
-        if (prevItem[parent]) nextItem[parent] = prevItem[parent];
-        else if (nextItem[parent]) prevItem[parent] = nextItem[parent];
+function link(prevNode: Node | null, nextNode: Node | null): void {
+    if (prevNode && nextNode) {
+        if (prevNode[parent]) nextNode[parent] = prevNode[parent];
+        else if (nextNode[parent]) prevNode[parent] = nextNode[parent];
     }
 
-    if (prevItem instanceof Spacer && nextItem instanceof Spacer) {
-        (prevItem as Spacer)[value].add((nextItem as Spacer)[value]);
+    if (prevNode instanceof Spacer && nextNode instanceof Spacer) {
+        const prevSpacer = prevNode as Spacer;
+        const nextSpacer = nextNode as Spacer;
 
-        link(prevItem, nextItem[next]);
-        unlink(nextItem);
+        nextSpacer[value] = nextSpacer[value].add(prevSpacer[value]);
+
+        const prevItem = prevSpacer[prev];
+
+        unlink(prevSpacer);
+
+        link(prevItem, nextSpacer);
     } else {
-        if (prevItem) prevItem[next] = nextItem;
-        if (nextItem) nextItem[prev] = prevItem;
+        if (prevNode) prevNode[next] = nextNode;
+        if (nextNode) nextNode[prev] = prevNode;
     }
 }
 
-function unlink(item: Node): void {
-    if (item[prev]) (item[prev] as Node)[next] = null;
-    if (item[next]) (item[next] as Node)[prev] = null;
+function unlink(it: Node): void {
+    if (it[prev]) (it[prev] as Node)[next] = null;
+    if (it[next]) (it[next] as Node)[prev] = null;
 
-    item[next] = item[prev] = null;
+    it[next] = it[prev] = null;
 
-    if (item[parent]) {
-        const parentNode = item[parent] as Node;
-        const i = parentNode[children].indexOf(item);
+    if (it[parent]) {
+        const parentNode = it[parent] as IrregularRhythm;
+        const i = parentNode[children].indexOf(it);
 
         parentNode[children].splice(i, 1);
 
-        item[parent] = null;
+        it[parent] = null;
     }
 }
 
@@ -428,6 +491,13 @@ function getPrev(node: Node | null): Node | null {
     }
 
     return node[prev] as Node;
+}
+
+function* iterateParents(
+    currentNode: Node,
+): Generator<IrregularRhythm, void, void> {
+    while ((currentNode = currentNode[parent] as IrregularRhythm))
+        yield currentNode as IrregularRhythm;
 }
 
 function isZero(fraction: Fraction): boolean {

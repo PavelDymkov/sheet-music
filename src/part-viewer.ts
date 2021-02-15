@@ -1,12 +1,10 @@
 import { Part, IrregularRhythm, Item, Node, Spacer } from "./part";
 
 export function view(part: Part): void {
-    const [nodeKey] = Object.getOwnPropertySymbols(part);
+    debugger;
+    const firstNode = getFirstNode(part.cursor.node);
 
-    const curentNode = (part as any)[nodeKey] as Node;
-    const firstNode = getFirstNode(curentNode);
-
-    iterate(getTopLevelItems(firstNode), "", curentNode);
+    iterate(getTopLevelItems(firstNode), "", part.cursor.node);
 }
 
 function getFirstNode(node: Node): Node {
