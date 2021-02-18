@@ -13,28 +13,30 @@ export class Part {
     readonly cursor = new Cursor(this);
 
     [node]: Node = new Spacer();
-    [nodeOffset] = Fraction.Zero;
+    [nodeOffset] = Fraction.Zero; // absolute
 
     insert(noteValue: NoteValue): Fraction {
         return insert.call(this, new Item(noteValue));
     }
 
-    changeNoteValue(noteValue: NoteValue): Fraction {
+    changeNoteValue(nextNoteValue: NoteValue): Fraction {
         if (this[node] instanceof Item) {
             const itemNode = this[node] as Item;
+            const prevNoteValue = itemNode[value];
 
-            if (itemNode[value] !== noteValue) {
-                let offset = noteValue.size.subtract(itemNode[value].size);
+            if (nextNoteValue !== prevNoteValue) {
+                itemNode[value] = nextNoteValue;
 
-                itemNode[value] = noteValue;
+                updateParents(itemNode);
 
-                for (let parentNode of iterateParents(itemNode)) {
-                    updateIrregularRhythm.call(parentNode);
+                const newSizeAbsolute = toAbsoluteSize(itemNode);
+                const currentNodeOffset = this[nodeOffset];
 
-                    offset = offset.multiply(parentNode[factor]);
+                if (newSizeAbsolute.compare("<", currentNodeOffset)) {
+                    this[nodeOffset] = newSizeAbsolute;
+
+                    return currentNodeOffset.subtract(newSizeAbsolute);
                 }
-
-                return offset;
             }
         }
 
@@ -49,19 +51,20 @@ export class Part {
         if (this[node] instanceof Spacer) {
             return Fraction.Zero;
         } else {
-            debugger;
             const prevSpacer = this[node][prev] as Spacer;
             const nextSpacer = this[node][next] as Spacer;
 
             const offset = this[nodeOffset];
 
-            this[nodeOffset] = prevSpacer[value];
+            this[nodeOffset] = toAbsoluteSize(prevSpacer);
 
             unlink(this[node]);
 
             link(prevSpacer, nextSpacer);
 
             this[node] = nextSpacer;
+
+            updateParents(this[node]);
 
             return offset;
         }
@@ -89,23 +92,25 @@ function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
         case Spacer:
             nextItem = this[node] as Spacer;
 
-            setNextItemSize: {
-                const size = nextItem[value]
+            setSizes: {
+                const nextItemSize = nextItem[value]
                     .subtract(toFraction(newNode))
                     .subtract(this[nodeOffset]);
 
-                nextItem[value] = size.compare(">", Fraction.Zero)
-                    ? size
+                nextItem[value] = nextItemSize.compare(">", Fraction.Zero)
+                    ? nextItemSize
                     : Fraction.Zero;
+
+                newSpacer[value] = this[nodeOffset];
             }
 
-            delta = newSpacer[value] = this[nodeOffset];
+            delta = Fraction.Zero;
             break;
 
         case Item:
             nextItem = this[node][next] as Spacer;
 
-            delta = toFraction(this[node]).subtract(this[nodeOffset]);
+            delta = toAbsoluteSize(this[node]).subtract(this[nodeOffset]);
             break;
 
         case IrregularRhythm:
@@ -137,10 +142,7 @@ function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
         default:
             this[node] = newNode;
 
-            if (this[node][parent] instanceof IrregularRhythm)
-                updateIrregularRhythm.call(
-                    this[node][parent] as IrregularRhythm,
-                );
+            updateParents(this[node]);
     }
 
     this[nodeOffset] = Fraction.Zero;
@@ -166,7 +168,7 @@ export class Cursor {
     }
 
     next(): Fraction {
-        const delta = toFraction(this.part[node]).subtract(
+        const delta = toAbsoluteSize(this.part[node]).subtract(
             this.part[nodeOffset],
         );
 
@@ -181,7 +183,7 @@ export class Cursor {
         const prevNode = getPrev(this.part[node]);
 
         if (prevNode && not(prevNode instanceof IrregularRhythm)) {
-            delta = delta.add(toFraction(prevNode));
+            delta = delta.add(toAbsoluteSize(prevNode));
         }
 
         moveBackward(this.part, delta);
@@ -205,7 +207,7 @@ function moveForward(part: Part, delta: Fraction): void {
 
     if (delta.compare(">", Fraction.Zero)) {
         const currentNode = part[node];
-        const currentSize = toFraction(currentNode);
+        const currentSize = toAbsoluteSize(currentNode);
 
         const nextNodeOffset = part[nodeOffset].add(delta);
 
@@ -225,7 +227,7 @@ function moveForward(part: Part, delta: Fraction): void {
                 if (part[nodeOffset].compare(">", currentSize)) {
                     const spacer = currentNode as Spacer;
 
-                    spacer[value] = part[nodeOffset];
+                    spacer[value] = toRelativeSize(spacer, part[nodeOffset]);
                 }
             }
         }
@@ -493,11 +495,38 @@ function getPrev(node: Node | null): Node | null {
     return node[prev] as Node;
 }
 
+function updateParents(from: Node): void {
+    let irregularRhythm = from as IrregularRhythm;
+
+    while ((irregularRhythm = irregularRhythm[parent] as IrregularRhythm))
+        updateIrregularRhythm.call(irregularRhythm);
+}
+
 function* iterateParents(
     currentNode: Node,
 ): Generator<IrregularRhythm, void, void> {
     while ((currentNode = currentNode[parent] as IrregularRhythm))
         yield currentNode as IrregularRhythm;
+}
+
+function toAbsoluteSize(node: Node, value?: Fraction): Fraction {
+    if (not(value)) value = toFraction(node);
+
+    for (let parent of iterateParents(node)) {
+        value = value!.multiply(parent[factor]);
+    }
+
+    return value as Fraction;
+}
+
+function toRelativeSize(node: Node, value?: Fraction): Fraction {
+    if (not(value)) value = toFraction(node);
+
+    for (let parent of iterateParents(node)) {
+        value = value!.divide(parent[factor]);
+    }
+
+    return value as Fraction;
 }
 
 function isZero(fraction: Fraction): boolean {

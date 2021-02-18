@@ -1,12 +1,13 @@
 {
     "name": "sheet-music--source",
-    "version": "0.0.0",
+    "version": "0.0.3",
     "scripts": {
+        ":publish": "node node-scripts/publish.js",
         "build": "npm run clean && tsc",
         "clean": "rimraf package/lib",
-        "generate-documentation": "rimraf documentation/api && typedoc",
+        "generate-documentation": "rimraf documentation/api && typedoc --options documentation/typedoc.json",
         "start": "npm run clean && tsc -w",
-        "test": "npm run build && tsc --project tsconfig.test.json && mocha test"
+        "test": "npm run build && tsc --project test/tsconfig.test.json && mocha --config test/mocha.config.json"
     },
     "dependencies": {
         "eventemitter3": "^4.0.7",

@@ -1,6 +1,6 @@
 {
     "name": "sheet-music",
-    "version": "0.0.3",
+    "version": "0.0.0",
     "description": "DevKit for creating sheet music",
     "main": "lib",
     "types": "lib",

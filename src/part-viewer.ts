@@ -1,7 +1,6 @@
 import { Part, IrregularRhythm, Item, Node, Spacer } from "./part";
 
 export function view(part: Part): void {
-    debugger;
     const firstNode = getFirstNode(part.cursor.node);
 
     iterate(getTopLevelItems(firstNode), "", part.cursor.node);

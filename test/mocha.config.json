@@ -1,0 +1,4 @@
+{
+    "spec": ["test/cases/**/*.js", "test/part-special/**/*.js"],
+    "parallel": true
+}
