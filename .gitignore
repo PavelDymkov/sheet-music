@@ -1,6 +1,7 @@
 documentation/api/
 node_modules/
 package/lib/
+package/package.json
 test/**/*.js
 
 
