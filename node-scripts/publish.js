@@ -28,7 +28,7 @@ increaseVersion: {
 }
 
 packageJons: {
-    const packageJSON = JSON.parse(read("node-scripts/package.json"));
+    const packageJSON = JSON.parse(read("src/package.json"));
 
     const { version, dependencies } = JSON.parse(read("package.json"));
 

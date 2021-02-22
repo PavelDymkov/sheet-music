@@ -11,6 +11,12 @@ export class Fraction {
         });
     }
 
+    static greatestCommonDivisor(fractions: Fraction[]): Fraction {
+        return fractions.reduce((current, item) =>
+            current.greatestCommonDivisor(item),
+        );
+    }
+
     static Zero = Fraction.create(0, 1);
 
     [value]: FractionJs;
@@ -77,13 +83,29 @@ export class Fraction {
         return this[value].ceil().valueOf();
     }
 
-    max(fraction: Fraction): Fraction {
-        return this.compare(">=", fraction) ? this : fraction;
-    }
+    // max(fraction: Fraction): Fraction {
+    //     return this.compare(">=", fraction) ? this : fraction;
+    // }
+
+    // min(fraction: Fraction): Fraction {
+    //     return this.compare("<=", fraction) ? this : fraction;
+    // }
 
     negative(): Fraction {
         return Object.assign(new Fraction(token), {
             [value]: this[value].neg(),
+        });
+    }
+
+    // leastCommonMultiple(fraction: Fraction): Fraction {
+    //     return Object.assign(new Fraction(token), {
+    //         [value]: this[value].lcm(fraction[value]),
+    //     });
+    // }
+
+    greatestCommonDivisor(fraction: Fraction): Fraction {
+        return Object.assign(new Fraction(token), {
+            [value]: this[value].gcd(fraction[value]),
         });
     }
 

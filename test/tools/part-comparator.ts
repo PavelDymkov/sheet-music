@@ -1,5 +1,4 @@
 import { ok } from "assert";
-import { not } from "logical-not";
 
 import {
     Part,
@@ -7,67 +6,101 @@ import {
     Item as PartItem,
     Spacer as PartSpacer,
     IrregularRhythm as PartIrregularRhythm,
-    IrregularRhythm,
 } from "../../package/lib/part";
 import { NoteValue } from "../../package/lib/note-value";
 import { Fraction } from "../../package/lib/tools/fraction";
 
 export function partAssertion(part: Part, expect: ExpectedNode[]): void {
-    const firstNode = getFirstNode(part.cursor.node);
+    const comparator = new Comparator(part);
 
-    for (let node of iterate(firstNode)) {
-        if (expect[0] instanceof Cursor) {
-            ok(node === part.cursor.node);
+    comparator.compare(expect);
+}
 
-            const cursor = expect.shift() as Cursor;
+class Comparator {
+    constructor(private readonly part: Part) {}
 
-            const [, nodeOffsetKey] = Object.getOwnPropertySymbols(part);
+    compare(expectArray: ExpectedNode[]): void {
+        expectArray = [...expectArray];
 
-            ok(cursor.offset.compare("=", part[nodeOffsetKey]));
+        let node = this.getFirstNode(this.part.cursor.node);
+
+        do {
+            if (this.checkCursor(node, expectArray[0])) expectArray.shift();
+
+            this.compareNode(node, expectArray.shift());
+        } while ((node = node.next));
+
+        ok(expectArray.length === 0, "33");
+    }
+
+    private getFirstNode(node: PartNode): PartNode {
+        if (node.parent) return this.getFirstNode(node.parent);
+        if (node.prev) return this.getFirstNode(node.prev);
+
+        return node;
+    }
+
+    private checkCursor(node: PartNode, mayBeCursor: ExpectedNode): boolean {
+        if (mayBeCursor instanceof Cursor) {
+            ok(node === this.part.cursor.node, "45");
+
+            const [, nodeOffsetKey] = Object.getOwnPropertySymbols(this.part);
+
+            ok(mayBeCursor.offset.compare("=", this.part[nodeOffsetKey]), "49");
+
+            return true;
         }
 
+        return false;
+    }
+
+    private compareNode(node: PartNode, expect: ExpectedNode): void {
         switch (node.constructor) {
             case PartItem:
-                compareItem(node as PartItem, expect.shift() as Note);
+                this.compareItem(node as PartItem, expect as Note);
                 break;
             case PartSpacer:
-                compareSpacer(node as PartSpacer, expect.shift() as Spacer);
+                this.compareSpacer(node as PartSpacer, expect as Spacer);
                 break;
             case PartIrregularRhythm:
-                compareIrregularRhythm(
+                this.compareIrregularRhythm(
                     node as PartIrregularRhythm,
-                    expect.shift() as IrregularRhythm,
+                    expect as Tuplet,
                 );
                 break;
         }
     }
-}
 
-function getFirstNode(node: PartNode): PartNode {
-    if (node.parent) return getFirstNode(node.parent);
-    if (node.prev) return getFirstNode(node.prev);
+    private compareItem(node: PartItem, expect: Note): void {
+        ok(expect instanceof Note, "75");
+        ok(node.value === expect.value, "76");
+    }
 
-    return node;
-}
+    private compareSpacer(node: PartSpacer, expect: Spacer): void {
+        ok(expect instanceof Spacer, "80");
+        ok(node.value.compare("=", expect.size), "81");
+    }
 
-function* iterate(node: PartNode): Generator<PartNode, void, void> {
-    do yield node;
-    while ((node = node.next));
-}
+    private compareIrregularRhythm(
+        node: PartIrregularRhythm,
+        expect: Tuplet,
+    ): void {
+        ok(expect instanceof Tuplet, "88");
+        ok(node.index === expect.index, "89");
+        ok(node.baseNoteValue === expect.baseNoteValue, "90");
+        ok(node.complete === expect.complete, "91");
 
-function compareItem(node: PartItem, expect: Note): void {
-    if (not(expect instanceof Note)) ok(false);
-}
+        const expectedChildren = [...expect.children];
 
-function compareSpacer(node: PartSpacer, expect: Spacer): void {
-    if (not(expect instanceof Spacer)) ok(false);
-}
+        for (let childNode of node.iterate()) {
+            if (this.checkCursor(childNode, expectedChildren[0]))
+                expectedChildren.shift();
 
-function compareIrregularRhythm(
-    node: PartIrregularRhythm,
-    expect: IrregularRhythm,
-): void {
-    if (not(expect instanceof IrregularRhythm)) ok(false);
+            this.compareNode(childNode, expectedChildren.shift());
+        }
+
+        ok(expectedChildren.length === 0, "");
+    }
 }
 
 class ExpectedNode {}
@@ -81,7 +114,12 @@ class Note implements ExpectedNode {
 }
 
 class Tuplet implements ExpectedNode {
-    constructor(readonly index: number, readonly value: NoteValue) {}
+    constructor(
+        readonly index: number,
+        readonly baseNoteValue: NoteValue,
+        readonly complete: boolean,
+        readonly children: ExpectedNode[],
+    ) {}
 }
 
 class Cursor {
@@ -96,8 +134,18 @@ export function note(value: NoteValue): Note {
     return new Note(value);
 }
 
-export function tuplet(index: number, value: NoteValue): Tuplet {
-    return new Tuplet(index, value);
+export function tuplet({
+    index,
+    baseNoteValue,
+    complete,
+    children,
+}: {
+    index: number;
+    baseNoteValue: NoteValue;
+    complete: boolean;
+    children: ExpectedNode[];
+}): Tuplet {
+    return new Tuplet(index, baseNoteValue, complete, children);
 }
 
 export function cursor({ offset = Fraction.Zero } = {}): Cursor {

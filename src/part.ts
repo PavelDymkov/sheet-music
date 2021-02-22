@@ -44,7 +44,11 @@ export class Part {
     }
 
     insertIrregularRhythm(): Fraction {
-        return insert.call(this, new IrregularRhythm());
+        const instance = new IrregularRhythm();
+
+        updateIrregularRhythm.call(instance);
+
+        return insert.call(this, instance);
     }
 
     remove(): Fraction {
@@ -85,52 +89,46 @@ export class Part {
 function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
     const newSpacer = new Spacer();
 
-    let nextItem: Spacer;
-    let delta: Fraction;
+    let nextSpacer: Spacer;
 
     switch (this[node].constructor) {
         case Spacer:
-            nextItem = this[node] as Spacer;
+            nextSpacer = this[node] as Spacer;
 
             setSizes: {
-                const nextItemSize = nextItem[value]
+                const nextItemSize = nextSpacer[value]
                     .subtract(toFraction(newNode))
                     .subtract(this[nodeOffset]);
 
-                nextItem[value] = nextItemSize.compare(">", Fraction.Zero)
+                nextSpacer[value] = nextItemSize.compare(">", Fraction.Zero)
                     ? nextItemSize
                     : Fraction.Zero;
 
                 newSpacer[value] = this[nodeOffset];
             }
-
-            delta = Fraction.Zero;
             break;
 
         case Item:
-            nextItem = this[node][next] as Spacer;
+            nextSpacer = this[node][next] as Spacer;
 
-            delta = toAbsoluteSize(this[node]).subtract(this[nodeOffset]);
             break;
 
         case IrregularRhythm:
-            nextItem = (this[node] as IrregularRhythm)[children][0] as Spacer;
-
-            delta = Fraction.Zero;
+            nextSpacer = (this[node] as IrregularRhythm)[children][0] as Spacer;
             break;
         default:
             return Fraction.Zero;
     }
 
-    const prevItem = nextItem[prev];
+    const prevNode = nextSpacer[prev];
 
-    link(newNode, nextItem); //(!) set [parent] for newNode
+    link(newNode, nextSpacer); //(!) set [parent] for newNode
     link(newSpacer, newNode); //(!) set [parent] for newSpacer
-    link(prevItem, newSpacer);
+    link(prevNode, newSpacer);
 
     if (newNode[parent]) {
         const parentNode = newNode[parent] as IrregularRhythm;
-        const i = parentNode[children].indexOf(nextItem);
+        const i = parentNode[children].indexOf(nextSpacer);
 
         parentNode[children].splice(i, 0, newSpacer, newNode);
     }
@@ -144,6 +142,11 @@ function insert(this: Part, newNode: Item | IrregularRhythm): Fraction {
 
             updateParents(this[node]);
     }
+
+    const delta =
+        prevNode instanceof Item
+            ? toAbsoluteSize(prevNode).subtract(this[nodeOffset])
+            : Fraction.Zero;
 
     this[nodeOffset] = Fraction.Zero;
 
@@ -243,7 +246,7 @@ function moveBackward(part: Part, delta: Fraction): void {
             part[nodeOffset] =
                 prevNode instanceof IrregularRhythm
                     ? Fraction.Zero
-                    : toFraction(prevNode);
+                    : toAbsoluteSize(prevNode);
         }
     }
 
@@ -255,7 +258,7 @@ function moveBackward(part: Part, delta: Fraction): void {
 
             if (prevNode) {
                 part[node] = prevNode;
-                part[nodeOffset] = toFraction(prevNode);
+                part[nodeOffset] = toAbsoluteSize(prevNode);
 
                 moveBackward(part, delta);
             } else {
@@ -318,13 +321,17 @@ export class Item extends Node {
 }
 
 const index = Symbol("index");
+const baseNoteValue = Symbol("baseNoteValue");
 const factor = Symbol("factor");
+const complete = Symbol("complete");
 
 export class IrregularRhythm extends Node {
     [children]: Node[] = [];
 
     [index] = 3;
+    [baseNoteValue]: NoteValue;
     [factor]: Fraction;
+    [complete] = false;
     [value] = NoteValue.fromNumber(0);
 
     get children(): Node[] {
@@ -333,6 +340,14 @@ export class IrregularRhythm extends Node {
 
     get index(): number {
         return this[index];
+    }
+
+    get baseNoteValue(): NoteValue {
+        return this[baseNoteValue];
+    }
+
+    get complete(): boolean {
+        return this[complete];
     }
 
     get value(): NoteValue {
@@ -355,44 +370,57 @@ export class IrregularRhythm extends Node {
 }
 
 function updateIrregularRhythm(this: IrregularRhythm): void {
-    let noteValueSizeMax = Fraction.Zero;
+    const noteValueSizeSet: Fraction[] = [];
+
     let noteValueSizeSum = Fraction.Zero;
+    let lastSpacerSize = Fraction.Zero;
 
     this[children].slice(0, -1).forEach(child => {
         const size = toFraction(child);
 
         if (not(child instanceof Spacer)) {
-            noteValueSizeMax = noteValueSizeMax.max(size);
+            noteValueSizeSet.push(size);
         }
 
-        noteValueSizeSum = noteValueSizeSum.add(size);
+        lastSpacerSize = lastSpacerSize.add(size);
     });
 
-    if (noteValueSizeMax.compare("!=", Fraction.Zero)) {
-        const noteQuantity = getIrregularRhythmNoteQuantity(
-            noteValueSizeSum.divide(noteValueSizeMax),
-        );
-        const numerator = power(2, floor(log2(noteQuantity)));
+    noteValueSizeSet.forEach(
+        size => (noteValueSizeSum = noteValueSizeSum.add(size)),
+    );
 
-        this[index] = noteQuantity;
-        this[factor] = Fraction.create(numerator, noteQuantity);
+    if (noteValueSizeSum.compare("!=", Fraction.Zero)) {
+        const baseNoteValueSize = Fraction.greatestCommonDivisor(
+            noteValueSizeSet,
+        );
+
+        this[index] = getIrregularRhythmIndex(
+            noteValueSizeSum.divide(baseNoteValueSize),
+        );
+        this[baseNoteValue] = NoteValue.fromNumber(baseNoteValueSize.valueOf());
+
+        const numerator = power(2, floor(log2(this[index])));
+
+        this[factor] = Fraction.create(numerator, this[index]);
+        this[complete] = false;
         this[value] = NoteValue.fromNumber(
-            noteValueSizeMax
-                .multiply(Fraction.create(this[index], 1))
-                .multiply(this[factor])
-                .valueOf(),
+            baseNoteValueSize.valueOf() * this[index],
         );
     } else {
         this[index] = 3;
+        this[baseNoteValue] = NoteValue.create();
         this[factor] = Fraction.create(1, 1);
+        this[complete] = false;
         this[value] = NoteValue.fromNumber(0);
     }
 
-    const lastChild = this.children[this.children.length - 1] as Spacer;
+    if (this[children].length > 1) {
+        const spacer = this.children[this.children.length - 1] as Spacer;
 
-    lastChild[value] = this[value].size
-        .divide(this[factor])
-        .subtract(noteValueSizeSum);
+        spacer[value] = this[value].size.subtract(lastSpacerSize);
+
+        this[complete] = spacer[value].compare("=", Fraction.Zero);
+    }
 
     if (this[parent] instanceof IrregularRhythm)
         updateIrregularRhythm.call(this[parent] as IrregularRhythm);
@@ -400,7 +428,7 @@ function updateIrregularRhythm(this: IrregularRhythm): void {
 
 const three = Fraction.create(3, 1);
 
-function getIrregularRhythmNoteQuantity(source: Fraction): number {
+function getIrregularRhythmIndex(source: Fraction): number {
     if (source.compare("<=", three)) return 3;
 
     let n = source.ceiling();

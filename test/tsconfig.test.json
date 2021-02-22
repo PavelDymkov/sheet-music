@@ -9,5 +9,5 @@
         "moduleResolution": "node"
     },
 
-    "include": ["./test/**/*.ts"]
+    "include": ["./**/*.ts"]
 }
