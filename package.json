@@ -3,11 +3,11 @@
     "version": "0.0.3",
     "scripts": {
         "build": "npm run clean && tsc",
-        "clean": "rimraf package/lib",
+        "clean": "rimraf package",
         "generate-documentation": "rimraf documentation/api && typedoc --options documentation/typedoc.json",
         "script:publish": "node node-scripts/publish.js",
         "start": "npm run clean && tsc -w",
-        "test": "npm run build && tsc --project test/tsconfig.test.json && mocha --config test/mocha.config.json"
+        "test": "tsc --project test/tsconfig.test.json && mocha --config test/mocha.config.json"
     },
     "dependencies": {
         "eventemitter3": "^4.0.7",

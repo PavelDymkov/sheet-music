@@ -15,28 +15,32 @@ const token = Symbol();
 
 export class Tonality {
     static get(tonic: Note, scale: Scale): Tonality {
-        const { note, accidental } = tonic;
+        const { noteName, accidental } = tonic;
 
-        if (not(cache[note])) {
-            cache[note] = {} as TonalityCacheLevel2;
+        if (not(cache[noteName])) {
+            cache[noteName] = {} as TonalityCacheLevel2;
         }
 
-        if (not(cache[note][accidental])) {
-            cache[note][accidental] = {} as TonalityCacheLevel3;
+        if (not(cache[noteName][accidental])) {
+            cache[noteName][accidental] = {} as TonalityCacheLevel3;
         }
 
-        if (not(cache[note][accidental][scale])) {
-            cache[note][accidental][scale] = new Tonality(tonic, scale, token);
-        }
-
-        return cache[note][accidental][scale];
-    }
-
-    constructor(readonly tonic: Note, readonly scale: Scale, _: symbol) {
-        if (_ !== token) {
-            throw new Error(
-                `use Tonality.get(tonic: Note, scale: Scale) for get instance of Tonality`,
+        if (not(cache[noteName][accidental][scale])) {
+            cache[noteName][accidental][scale] = new Tonality(
+                tonic,
+                scale,
+                token,
             );
         }
+
+        return cache[noteName][accidental][scale];
+    }
+
+    private constructor(
+        readonly tonic: Note,
+        readonly scale: Scale,
+        _: symbol,
+    ) {
+        if (_ !== token) throw new Error("Illigal constructor");
     }
 }

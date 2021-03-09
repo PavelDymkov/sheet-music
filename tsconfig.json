@@ -1,9 +1,9 @@
 {
     "compilerOptions": {
-        "rootDir": "./src",
-        "outDir": "./package/lib",
+        "rootDir": "src",
+        "outDir": "package",
         "target": "ES2015",
-        "lib": ["ES2015", "ES2016"],
+        "lib": ["ES2015", "ES2016", "DOM"],
         "module": "CommonJS",
         "moduleResolution": "Node",
         "esModuleInterop": true,
@@ -16,5 +16,5 @@
     },
 
     "include": ["./src/**/*.ts"],
-    "exclude": []
+    "exclude": ["./src/package"]
 }

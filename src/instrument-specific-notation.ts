@@ -1,8 +1,8 @@
 export enum InstrumentSpecificNotation {
-    PizzicatoLeftHand,
-    PizzicatoSnap,
-    Flageolet,
-    OpenNote,
-    UpBow,
-    DownBow,
+    PizzicatoLeftHand = "pizzicato-left-hand",
+    PizzicatoSnap = "pizzicato-snap",
+    Flageolet = "flageolet",
+    OpenNote = "open-note",
+    UpBow = "up-bow",
+    DownBow = "down-bow",
 }

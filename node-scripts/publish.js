@@ -1,7 +1,7 @@
 const readArgs = require("arg");
 const chalk = require("chalk");
 
-const { cd, exec, exit } = require("shelljs");
+const { cd, cp, exec, exit } = require("shelljs");
 const { readFileSync: read, writeFileSync: write } = require("fs");
 const { not } = require("logical-not");
 
@@ -12,8 +12,16 @@ if (not(exec("git branch").stdout.includes("master"))) {
     exit(0);
 }
 
+runBuild: {
+    exec("npm run build");
+}
+
 runTest: {
-    exec("npm run test");
+    // exec("npm run test");
+}
+
+copyNonCodePackageFiles: {
+    cp("-r", "src/package", "package");
 }
 
 increaseVersion: {
@@ -24,11 +32,12 @@ increaseVersion: {
 
     exec(`npm version ${versionAction}`);
 
+    // second version patch for odd version
     if (versionAction === "patch") exec(`npm version ${versionAction}`);
 }
 
-packageJons: {
-    const packageJSON = JSON.parse(read("src/package.json"));
+packageJsonUpdate: {
+    const packageJSON = JSON.parse(read("package/package.json"));
 
     const { version, dependencies } = JSON.parse(read("package.json"));
 

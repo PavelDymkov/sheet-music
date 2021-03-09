@@ -1,3 +1,4 @@
+import { Clef } from "./clef";
 import { Note } from "./note";
 import { NoteValue } from "./note-value";
 import { Part, Cursor as PartCursor } from "./part";
@@ -16,6 +17,8 @@ export class Staff {
 
     [voice]: Part = this[main];
     [dependent]: Part = this[extra];
+
+    constructor(readonly clef: Clef) {}
 
     @SideEffect(dependentCursorForward)
     insert(noteValue: NoteValue): Fraction {

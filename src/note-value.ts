@@ -137,10 +137,8 @@ export class NoteValue {
         );
     }
 
-    constructor(_: symbol) {
-        if (_ !== token) {
-            throw new Error("Illegal constructor");
-        }
+    private constructor(_: symbol) {
+        if (_ !== token) throw new Error("Illegal constructor");
     }
 
     split(timeSignature: TimeSignature, offset?: NoteValue): NoteValue[] {

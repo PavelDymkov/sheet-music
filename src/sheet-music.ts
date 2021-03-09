@@ -2,6 +2,7 @@ import { EventEmitter } from "eventemitter3";
 import { not } from "logical-not";
 
 import { Bar } from "./bar";
+import { Clef } from "./clef";
 import { Note } from "./note";
 import { NoteValue } from "./note-value";
 import { Specifier } from "./specifiers/specifier";
@@ -15,7 +16,7 @@ const specifiers = Symbol();
 
 export class SheetMusic {
     static readonly Events = {
-        Change: Symbol("change"),
+        ChangeBars: Symbol("change bars"),
         ChangeNote: Symbol("change note"),
         CursorMove: Symbol("cursor move"),
     };
@@ -34,44 +35,44 @@ export class SheetMusic {
         this.cursor[owner] = this;
     }
 
-    @Event(SheetMusic.Events.Change)
-    insertStaff(): void {
-        this[staffs].splice(++this[staffIndex], 0, new Staff());
+    @Event(SheetMusic.Events.ChangeBars)
+    insertStaff(clef: Clef): void {
+        this[staffs].splice(++this[staffIndex], 0, new Staff(clef));
     }
 
-    @Event(SheetMusic.Events.Change)
+    @Event(SheetMusic.Events.ChangeBars)
     removeStaff(): void {
         if (this[staffIndex] !== -1) {
             this[staffs].splice(this[staffIndex]--, 1);
         }
     }
 
-    @StaffProcessor<NoteValue>(
+    @StaffProcessing<NoteValue>(
         (staff, noteValue) => staff.insert(noteValue),
         (cursor, diff) => cursor.forward(diff),
     )
-    @Event(SheetMusic.Events.Change)
+    @Event(SheetMusic.Events.ChangeBars)
     insert(noteValue: NoteValue): void {}
 
-    @StaffProcessor<NoteValue>(
+    @StaffProcessing<NoteValue>(
         (staff, nextNoteValue) => staff.changeNoteValue(nextNoteValue),
         (cursor, diff) => cursor.forward(diff),
     )
-    @Event(SheetMusic.Events.Change)
+    @Event(SheetMusic.Events.ChangeBars)
     changeNoteValue(nextNoteValue: NoteValue): void {}
 
-    @StaffProcessor(
+    @StaffProcessing(
         staff => staff.insertIrregularRhythm(),
         (cursor, diff) => cursor.forward(diff),
     )
-    @Event(SheetMusic.Events.Change)
+    @Event(SheetMusic.Events.ChangeBars)
     insertIrregularRhythm(): void {}
 
-    @StaffProcessor(
+    @StaffProcessing(
         staff => staff.remove(),
         (cursor, diff) => cursor.backward(diff),
     )
-    @Event(SheetMusic.Events.Change)
+    @Event(SheetMusic.Events.ChangeBars)
     remove(): void {}
 
     @Event(SheetMusic.Events.ChangeNote)
@@ -87,6 +88,12 @@ export class SheetMusic {
             this[staffs][this[staffIndex]].removeNote(note);
         }
     }
+
+    @Event(SheetMusic.Events.ChangeBars)
+    insertSpecifier(specifier: Specifier): void {}
+
+    @Event(SheetMusic.Events.ChangeBars)
+    removeSpecifier(Type: typeof Specifier): void {}
 
     bars({ offset = 0 }: { offset: number }): Generator {
         return barsIterator(this);
@@ -158,33 +165,36 @@ export class Cursor {
 }
 
 function Event(type: symbol): MethodDecorator {
-    return (target: any, propertyKey: string | symbol) => {
-        const origin = target[propertyKey] as Function;
+    type EventDispatched = (this: SheetMusic, ...args: any[]) => void;
+
+    return (
+        target: any,
+        propertyKey: string | symbol,
+    ): TypedPropertyDescriptor<any> => {
+        const origin = target[propertyKey] as EventDispatched;
 
         return {
-            value(this: SheetMusic, args: any[]): void {
+            value(this: SheetMusic, ...args: any[]): void {
                 origin.apply(this, args);
 
                 this.events.emit(type);
             },
-        } as TypedPropertyDescriptor<any>;
+        };
     };
 }
 
-function StaffProcessor<T = void>(
-    staffHandler: (staff: Staff, arg: T) => Fraction,
-    diffHandler: (cursor: StaffCursor, diff: Fraction) => void,
+function StaffProcessing<Argument = void>(
+    staffHandler: (staff: Staff, arg: Argument) => Fraction,
+    diffHandler: (staffCursor: StaffCursor, diff: Fraction) => void,
 ): MethodDecorator {
-    return () => {
-        return {
-            value(this: SheetMusic, arg: T): void {
-                const staff = this[staffs][this[staffIndex]];
-                const diff = staffHandler(staff, arg);
+    return (): TypedPropertyDescriptor<any> => ({
+        value(this: SheetMusic, arg: Argument): void {
+            const staff = this[staffs][this[staffIndex]];
+            const diff = staffHandler(staff, arg);
 
-                this[staffs].forEach(item => {
-                    if (item !== staff) diffHandler(item.cursor, diff);
-                });
-            },
-        } as TypedPropertyDescriptor<any>;
-    };
+            this[staffs].forEach(item => {
+                if (item !== staff) diffHandler(item.cursor, diff);
+            });
+        },
+    });
 }

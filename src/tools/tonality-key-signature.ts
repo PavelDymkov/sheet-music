@@ -158,7 +158,7 @@ export function tonalityKeySignature(tonality: Tonality): Note[] {
     const accidental = getAcceptedAccidental(tonality);
     const scale = scaleToMajorOrMinor(tonality.scale);
 
-    const i = keySignaturesMap[tonality.tonic.note][accidental][scale];
+    const i = keySignaturesMap[tonality.tonic.noteName][accidental][scale];
 
     if (i === 0) return [];
 

@@ -2,8 +2,8 @@
     "name": "sheet-music",
     "version": "0.0.0",
     "description": "DevKit for creating sheet music",
-    "main": "lib",
-    "types": "lib",
+    "main": ".",
+    "types": ".",
     "author": {
         "name": "Pavel Dymkov",
         "email": "dymkov86@gmail.com"

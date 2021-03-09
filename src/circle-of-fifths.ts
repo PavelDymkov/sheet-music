@@ -58,12 +58,13 @@ export class CircleOfFifths {
 
     constructor(readonly tonality: Tonality) {
         const {
-            tonic: { note, accidental },
+            tonic: { noteName, accidental },
             scale,
         } = tonality;
 
         this.i = orderMapFor[scaleToMajorOrMinor(scale)].findIndex(
-            item => item.note === note && item.accidental === accidental,
+            item =>
+                item.noteName === noteName && item.accidental === accidental,
         );
 
         if (this.i === -1) {
