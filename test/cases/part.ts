@@ -1,8 +1,8 @@
 import { ok } from "assert";
 
-import { Part, Item, Spacer } from "../../package/lib/part";
-import { NoteValue } from "../../package/lib/note-value";
-import { Fraction } from "../../package/lib/tools/fraction";
+import { Part, PartNoteSet, PartSpacer } from "../../package/part";
+import { NoteValue } from "../../package/note-value";
+import { Fraction } from "../../package/tools/fraction";
 
 import {
     partAssertion as assert,
@@ -26,7 +26,7 @@ describe("sheet-music/part", () => {
     it("should insert eight note", () => {
         const part = new Part();
 
-        delta(part.insert(Eight), Zero);
+        delta(part.insertNoteSet(Eight), Zero);
 
         assert(part, [spacer(), cursor(), note(Eight), spacer()]);
     });
@@ -34,8 +34,8 @@ describe("sheet-music/part", () => {
     it("should remove last inserted", () => {
         const part = new Part();
 
-        delta(part.insert(Eight), Zero);
-        delta(part.insert(Quarter), Eight.size);
+        delta(part.insertNoteSet(Eight), Zero);
+        delta(part.insertNoteSet(Quarter), Eight.size);
 
         assert(part, [
             spacer(),
@@ -54,39 +54,39 @@ describe("sheet-music/part", () => {
     it("should test cursor forward and backward", () => {
         const part = new Part();
 
-        part.insert(Eight);
+        part.insertNoteSet(Eight);
 
-        const note1 = part.cursor.node;
+        const note1 = part.cursor.item;
 
-        ok(note1 instanceof Item);
+        ok(note1 instanceof PartNoteSet);
 
-        part.insert(Quarter);
+        part.insertNoteSet(Quarter);
 
-        const note2 = part.cursor.node;
+        const note2 = part.cursor.item;
 
-        ok(note2 instanceof Item);
+        ok(note2 instanceof PartNoteSet);
 
         part.cursor.forward(Quarter.size);
 
-        ok(part.cursor.node instanceof Spacer);
+        ok(part.cursor.item instanceof PartSpacer);
 
         part.cursor.backward(Eight.size);
 
         // @ts-ignore
-        ok(part.cursor.node === note2);
+        ok(part.cursor.item === note2);
 
         part.cursor.backward(Eight.size);
 
-        ok(part.cursor.node === note2);
+        ok(part.cursor.item === note2);
 
         part.cursor.backward(Fraction.Zero);
 
         // @ts-ignore
-        ok(part.cursor.node instanceof Spacer);
+        ok(part.cursor.item instanceof PartSpacer);
 
         part.cursor.backward(Sixteenth.size);
 
-        ok(part.cursor.node === note1);
+        ok(part.cursor.item === note1);
 
         assert(part, [
             spacer(),
@@ -104,7 +104,7 @@ describe("sheet-music/part", () => {
         part.cursor.forward(Half.size);
         part.cursor.backward(dotted(Quarter).size);
 
-        part.insert(Quarter);
+        part.insertNoteSet(Quarter);
 
         assert(part, [
             spacer(Eight.size),

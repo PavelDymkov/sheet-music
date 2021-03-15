@@ -2,13 +2,14 @@ import { ok } from "assert";
 
 import {
     Part,
-    Node as PartNode,
-    Item as PartItem,
-    Spacer as PartSpacer,
-    IrregularRhythm as PartIrregularRhythm,
-} from "../../package/lib/part";
-import { NoteValue } from "../../package/lib/note-value";
-import { Fraction } from "../../package/lib/tools/fraction";
+    PartItem,
+    PartNoteSet,
+    PartSpacer,
+    PartTuplet,
+    PartTupletState,
+} from "../../package/part";
+import { NoteValue } from "../../package/note-value";
+import { Fraction } from "../../package/tools/fraction";
 
 export function partAssertion(part: Part, expect: ExpectedNode[]): void {
     const comparator = new Comparator(part);
@@ -22,7 +23,7 @@ class Comparator {
     compare(expectArray: ExpectedNode[]): void {
         expectArray = [...expectArray];
 
-        let node = this.getFirstNode(this.part.cursor.node);
+        let node = this.getFirstNode(this.part.cursor.item);
 
         do {
             if (this.checkCursor(node, expectArray[0])) expectArray.shift();
@@ -33,16 +34,16 @@ class Comparator {
         ok(expectArray.length === 0, "33");
     }
 
-    private getFirstNode(node: PartNode): PartNode {
+    private getFirstNode(node: PartItem): PartItem {
         if (node.parent) return this.getFirstNode(node.parent);
         if (node.prev) return this.getFirstNode(node.prev);
 
         return node;
     }
 
-    private checkCursor(node: PartNode, mayBeCursor: ExpectedNode): boolean {
+    private checkCursor(node: PartItem, mayBeCursor: ExpectedNode): boolean {
         if (mayBeCursor instanceof Cursor) {
-            ok(node === this.part.cursor.node, "45");
+            ok(node === this.part.cursor.item, "45");
 
             const [, nodeOffsetKey] = Object.getOwnPropertySymbols(this.part);
 
@@ -54,41 +55,38 @@ class Comparator {
         return false;
     }
 
-    private compareNode(node: PartNode, expect: ExpectedNode): void {
+    private compareNode(node: PartItem, expect: ExpectedNode): void {
         switch (node.constructor) {
-            case PartItem:
-                this.compareItem(node as PartItem, expect as Note);
+            case PartNoteSet:
+                this.compareNoteSet(node as PartNoteSet, expect as Note);
                 break;
             case PartSpacer:
                 this.compareSpacer(node as PartSpacer, expect as Spacer);
                 break;
-            case PartIrregularRhythm:
+            case PartTuplet:
                 this.compareIrregularRhythm(
-                    node as PartIrregularRhythm,
+                    node as PartTuplet,
                     expect as Tuplet,
                 );
                 break;
         }
     }
 
-    private compareItem(node: PartItem, expect: Note): void {
+    private compareNoteSet(node: PartNoteSet, expect: Note): void {
         ok(expect instanceof Note, "75");
-        ok(node.value === expect.value, "76");
+        ok(node.noteValue === expect.value, "76");
     }
 
     private compareSpacer(node: PartSpacer, expect: Spacer): void {
         ok(expect instanceof Spacer, "80");
-        ok(node.value.compare("=", expect.size), "81");
+        ok(node.duration.compare("=", expect.size), "81");
     }
 
-    private compareIrregularRhythm(
-        node: PartIrregularRhythm,
-        expect: Tuplet,
-    ): void {
+    private compareIrregularRhythm(node: PartTuplet, expect: Tuplet): void {
         ok(expect instanceof Tuplet, "88");
         ok(node.index === expect.index, "89");
         ok(node.baseNoteValue === expect.baseNoteValue, "90");
-        ok(node.complete === expect.complete, "91");
+        ok(node.state === expect.state, "91");
 
         const expectedChildren = [...expect.children];
 
@@ -117,7 +115,7 @@ class Tuplet implements ExpectedNode {
     constructor(
         readonly index: number,
         readonly baseNoteValue: NoteValue,
-        readonly complete: boolean,
+        readonly state: PartTupletState,
         readonly children: ExpectedNode[],
     ) {}
 }
@@ -137,15 +135,15 @@ export function note(value: NoteValue): Note {
 export function tuplet({
     index,
     baseNoteValue,
-    complete,
+    state,
     children,
 }: {
     index: number;
     baseNoteValue: NoteValue;
-    complete: boolean;
+    state: PartTupletState;
     children: ExpectedNode[];
 }): Tuplet {
-    return new Tuplet(index, baseNoteValue, complete, children);
+    return new Tuplet(index, baseNoteValue, state, children);
 }
 
 export function cursor({ offset = Fraction.Zero } = {}): Cursor {

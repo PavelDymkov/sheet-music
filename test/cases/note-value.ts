@@ -1,7 +1,7 @@
 import { ok } from "assert";
 
-import { NoteValue } from "../../package/lib/note-value";
-import { TimeSignature } from "../../package/lib/time-signature";
+import { NoteValue } from "../../package/note-value";
+import { TimeSignature } from "../../package/time-signature";
 
 describe("sheet-music/note-value", () => {
     it("should check NoteValue items equality", () => {

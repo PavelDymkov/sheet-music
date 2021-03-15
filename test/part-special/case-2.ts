@@ -1,6 +1,6 @@
-import { Part } from "../../package/lib/part";
-import { NoteValue } from "../../package/lib/note-value";
-import { Fraction } from "../../package/lib/tools/fraction";
+import { Part, PartTupletState } from "../../package/part";
+import { NoteValue } from "../../package/note-value";
+import { Fraction } from "../../package/tools/fraction";
 
 import {
     partAssertion as assert,
@@ -20,17 +20,17 @@ const quintupletFactor = Fraction.create(5, 4);
 it("part special: case 1", () => {
     const part = new Part();
 
-    part.insertIrregularRhythm();
+    part.insertTuplet();
 
-    part.insert(Quarter);
-    part.insert(Quarter);
+    part.insertNoteSet(Quarter);
+    part.insertNoteSet(Quarter);
 
     assert(part, [
         spacer(),
         tuplet({
             index: 3,
             baseNoteValue: Quarter,
-            complete: false,
+            state: PartTupletState.Incomplete,
             children: [
                 spacer(),
                 note(Quarter),
@@ -43,14 +43,14 @@ it("part special: case 1", () => {
         spacer(),
     ]);
 
-    part.insert(Quarter);
+    part.insertNoteSet(Quarter);
 
     assert(part, [
         spacer(),
         tuplet({
             index: 3,
             baseNoteValue: Quarter,
-            complete: true,
+            state: PartTupletState.Complete,
             children: [
                 spacer(),
                 note(Quarter),
@@ -65,14 +65,14 @@ it("part special: case 1", () => {
         spacer(),
     ]);
 
-    part.insert(Quarter);
+    part.insertNoteSet(Quarter);
 
     assert(part, [
         spacer(),
         tuplet({
             index: 5,
             baseNoteValue: Quarter,
-            complete: false,
+            state: PartTupletState.Incomplete,
             children: [
                 spacer(),
                 note(Quarter),
@@ -89,14 +89,14 @@ it("part special: case 1", () => {
         spacer(),
     ]);
 
-    part.insert(Quarter);
+    part.insertNoteSet(Quarter);
 
     assert(part, [
         spacer(),
         tuplet({
             index: 5,
             baseNoteValue: Quarter,
-            complete: true,
+            state: PartTupletState.Complete,
             children: [
                 spacer(),
                 note(Quarter),

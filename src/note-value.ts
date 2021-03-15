@@ -141,6 +141,24 @@ export class NoteValue {
         if (_ !== token) throw new Error("Illegal constructor");
     }
 
+    factoring(): { noteValue: NoteValue; factor: number } {
+        const { length } = this[set];
+
+        if (length === 0)
+            return {
+                noteValue: NoteValue.fromNumber(0),
+                factor: 0,
+            };
+
+        const noteValue = create(this[set][length - 1]);
+        const factor = this.size.divide(noteValue.size).valueOf();
+
+        return {
+            noteValue,
+            factor,
+        };
+    }
+
     split(timeSignature: TimeSignature, offset?: NoteValue): NoteValue[] {
         const array: NoteValue[] = [];
 

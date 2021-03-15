@@ -18,7 +18,7 @@ export class NoteSet {
         return this[notes].slice();
     }
 
-    get value(): NoteValue {
+    get noteValue(): NoteValue {
         return this[duration];
     }
 
@@ -41,5 +41,13 @@ export class NoteSet {
         const i = this[notes].findIndex(item => item.isEqual(note));
 
         this[notes].splice(i, 1);
+    }
+
+    clone(noteValue: NoteValue): NoteSet {
+        const copy = new NoteSet(noteValue, this[specifier]);
+
+        this.notes.forEach(note => copy.insert(note));
+
+        return copy;
     }
 }

@@ -1,6 +1,6 @@
-import { Part } from "../../package/lib/part";
-import { NoteValue } from "../../package/lib/note-value";
-import { Fraction } from "../../package/lib/tools/fraction";
+import { Part, PartTupletState } from "../../package/part";
+import { NoteValue } from "../../package/note-value";
+import { Fraction } from "../../package/tools/fraction";
 
 import {
     partAssertion as assert,
@@ -20,37 +20,37 @@ const quintupletFactor = Fraction.create(5, 4);
 it("part special: case 1", () => {
     const part = new Part();
 
-    delta(part.insertIrregularRhythm(), Zero);
+    delta(part.insertTuplet(), Zero);
     assert(part, [
         spacer(),
         tuplet({
             index: 3,
             baseNoteValue: NoteValue.create(),
-            complete: false,
+            state: PartTupletState.Incomplete,
             children: [cursor(), spacer()],
         }),
         spacer(),
     ]);
 
-    delta(part.insert(Eight), Zero);
+    delta(part.insertNoteSet(Eight), Zero);
     assert(part, [
         spacer(),
         tuplet({
             index: 3,
             baseNoteValue: Eight,
-            complete: false,
+            state: PartTupletState.Incomplete,
             children: [spacer(), cursor(), note(Eight), spacer(Quarter.size)],
         }),
         spacer(),
     ]);
 
-    delta(part.insert(Quarter), Eight.size.divide(tripletFactor));
+    delta(part.insertNoteSet(Quarter), Eight.size.divide(tripletFactor));
     assert(part, [
         spacer(),
         tuplet({
             index: 3,
             baseNoteValue: Eight,
-            complete: true,
+            state: PartTupletState.Complete,
             children: [
                 spacer(),
                 note(Eight),
@@ -63,13 +63,13 @@ it("part special: case 1", () => {
         spacer(),
     ]);
 
-    delta(part.insert(Quarter), Quarter.size.divide(quintupletFactor));
+    delta(part.insertNoteSet(Quarter), Quarter.size.divide(quintupletFactor));
     assert(part, [
         spacer(),
         tuplet({
             index: 5,
             baseNoteValue: Eight,
-            complete: true,
+            state: PartTupletState.Complete,
             children: [
                 spacer(),
                 note(Eight),
@@ -90,7 +90,7 @@ it("part special: case 1", () => {
         tuplet({
             index: 5,
             baseNoteValue: Eight,
-            complete: true,
+            state: PartTupletState.Complete,
             children: [
                 spacer(),
                 note(Eight),
@@ -113,7 +113,7 @@ it("part special: case 1", () => {
         tuplet({
             index: 3,
             baseNoteValue: Eight,
-            complete: true,
+            state: PartTupletState.Complete,
             children: [
                 spacer(),
                 note(Eight),

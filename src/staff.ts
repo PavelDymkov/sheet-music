@@ -1,7 +1,7 @@
 import { Clef } from "./clef";
 import { Note } from "./note";
 import { NoteValue } from "./note-value";
-import { Part, Cursor as PartCursor } from "./part";
+import { Part, PartCursor as PartCursor } from "./part";
 import { Fraction } from "./tools/fraction";
 
 const main = Symbol();
@@ -22,7 +22,7 @@ export class Staff {
 
     @SideEffect(dependentCursorForward)
     insert(noteValue: NoteValue): Fraction {
-        return this[voice].insert(noteValue);
+        return this[voice].insertNoteSet(noteValue);
     }
 
     @SideEffect(dependentCursorForward)
@@ -32,7 +32,7 @@ export class Staff {
 
     @SideEffect(dependentCursorForward)
     insertIrregularRhythm(): Fraction {
-        return this[voice].insertIrregularRhythm();
+        return this[voice].insertTuplet();
     }
 
     @SideEffect(dependentCursorBackward)
