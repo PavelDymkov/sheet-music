@@ -1,5 +1,6 @@
 documentation/api/
 node_modules/
+node-scripts/tools/*.js
 package/
 !src/package
 test/**/*.js
