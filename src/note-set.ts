@@ -2,8 +2,8 @@ import { not } from "logical-not";
 
 import { Articulation, Ornament } from "./articulation";
 import { InstrumentSpecificNotation } from "./instrument-specific-notation";
-import { Note } from "./note";
 import { NoteValue } from "./note-value";
+import { Note } from "./note";
 
 const notes = Symbol();
 const duration = Symbol();
@@ -41,6 +41,13 @@ export class NoteSet {
         const i = this[notes].findIndex(item => item.isEqual(note));
 
         this[notes].splice(i, 1);
+    }
+
+    toggle(note: Note): void {
+        const i = this[notes].findIndex(item => item.isEqual(note));
+
+        if (i === -1) this[notes].push(note);
+        else this[notes].splice(i, 1);
     }
 
     clone(noteValue: NoteValue): NoteSet {

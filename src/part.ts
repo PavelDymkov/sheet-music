@@ -1,9 +1,9 @@
 import { not } from "logical-not";
 
-import { Note } from "./note";
+import { Fraction } from "./tools/fraction";
 import { NoteSet } from "./note-set";
 import { NoteValue } from "./note-value";
-import { Fraction } from "./tools/fraction";
+import { Note } from "./note";
 
 const { floor, pow: power, log2 } = Math;
 
@@ -17,31 +17,10 @@ export class Part {
     [itemOffset] = Fraction.Zero; // absolute
 
     insertNoteSet(noteValue: NoteValue): Fraction {
+        if (this[item] instanceof PartNoteSet)
+            return changeNoteValue.call(this, noteValue);
+
         return insert.call(this, new PartNoteSet(noteValue));
-    }
-
-    changeNoteValue(nextNoteValue: NoteValue): Fraction {
-        if (this[item] instanceof PartNoteSet) {
-            const currentItem = this[item] as PartNoteSet;
-            const prevNoteValue = currentItem.noteValue;
-
-            if (nextNoteValue !== prevNoteValue) {
-                currentItem[value] = currentItem[value].clone(nextNoteValue);
-
-                updateParents(currentItem);
-
-                const newSizeAbsolute = toAbsoluteSize(currentItem);
-                const currentItemOffset = this[itemOffset];
-
-                if (newSizeAbsolute.compare("<", currentItemOffset)) {
-                    this[itemOffset] = newSizeAbsolute;
-
-                    return currentItemOffset.subtract(newSizeAbsolute);
-                }
-            }
-        }
-
-        return Fraction.Zero;
     }
 
     insertTuplet(): Fraction {
@@ -50,6 +29,11 @@ export class Part {
         updateTuplet.call(instance);
 
         return insert.call(this, instance);
+    }
+
+    toggleNote(note: Note): void {
+        if (this[item] instanceof PartNoteSet)
+            (this[item] as PartNoteSet)[value].toggle(note);
     }
 
     remove(): Fraction {
@@ -73,16 +57,6 @@ export class Part {
 
             return offset;
         }
-    }
-
-    insertNote(note: Note): void {
-        if (this[item] instanceof PartNoteSet)
-            (this[item] as PartNoteSet)[value].insert(note);
-    }
-
-    removeNote(note: Note): void {
-        if (this[item] instanceof PartNoteSet)
-            (this[item] as PartNoteSet)[value].remove(note);
     }
 
     *iterate(): Generator<PartItem> {
@@ -158,6 +132,30 @@ function insert(this: Part, newItem: PartNoteSet | PartTuplet): Fraction {
     this[itemOffset] = Fraction.Zero;
 
     return delta;
+}
+
+function changeNoteValue(this: Part, nextNoteValue: NoteValue): Fraction {
+    if (this[item] instanceof PartNoteSet) {
+        const currentItem = this[item] as PartNoteSet;
+        const prevNoteValue = currentItem.noteValue;
+
+        if (nextNoteValue !== prevNoteValue) {
+            currentItem[value] = currentItem[value].clone(nextNoteValue);
+
+            updateParents(currentItem);
+
+            const newSizeAbsolute = toAbsoluteSize(currentItem);
+            const currentItemOffset = this[itemOffset];
+
+            if (newSizeAbsolute.compare("<", currentItemOffset)) {
+                this[itemOffset] = newSizeAbsolute;
+
+                return currentItemOffset.subtract(newSizeAbsolute);
+            }
+        }
+    }
+
+    return Fraction.Zero;
 }
 
 export class PartCursor {

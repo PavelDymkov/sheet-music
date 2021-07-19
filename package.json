@@ -10,7 +10,6 @@
         "test": "tsc --project test/tsconfig.test.json && mocha --config test/mocha.config.json"
     },
     "dependencies": {
-        "eventemitter3": "^4.0.7",
         "fraction.js": "^4.0.13",
         "logical-not": "^1.0.7"
     },

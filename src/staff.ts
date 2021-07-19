@@ -1,37 +1,42 @@
-import { Clef } from "./clef";
-import { Note } from "./note";
-import { NoteValue } from "./note-value";
-import { Part, PartCursor as PartCursor } from "./part";
 import { Fraction } from "./tools/fraction";
+import { Clef } from "./clef";
+import { NoteValue } from "./note-value";
+import { Note } from "./note";
+import { Part, PartCursor as PartCursor } from "./part";
 
-const main = Symbol();
-const extra = Symbol();
+const voices = Symbol();
 const voice = Symbol();
-const dependent = Symbol();
+const offset = Symbol();
 
 export class Staff {
     readonly cursor = Object.assign(new Cursor(), { [staff]: this }) as Cursor;
 
-    [main]: Part = new Part();
-    [extra]: Part = new Part();
+    [voices] = [new Part()];
+    [voice]: Part;
 
-    [voice]: Part = this[main];
-    [dependent]: Part = this[extra];
+    [offset]: Fraction;
 
-    constructor(readonly clef: Clef) {}
+    constructor(readonly clef: Clef, initialOffset: Fraction) {
+        this[offset] = initialOffset;
+
+        this.addVoice();
+    }
+
+    addVoice(): void {
+        const part = new Part();
+
+        part.cursor.forward(this[offset]);
+
+        this[voices].push(part);
+    }
 
     @SideEffect(dependentCursorForward)
-    insert(noteValue: NoteValue): Fraction {
+    insertNoteSet(noteValue: NoteValue): Fraction {
         return this[voice].insertNoteSet(noteValue);
     }
 
     @SideEffect(dependentCursorForward)
-    changeNoteValue(nextNoteValue: NoteValue): Fraction {
-        return this[voice].changeNoteValue(nextNoteValue);
-    }
-
-    @SideEffect(dependentCursorForward)
-    insertIrregularRhythm(): Fraction {
+    insertTuplet(): Fraction {
         return this[voice].insertTuplet();
     }
 
@@ -40,12 +45,8 @@ export class Staff {
         return this[voice].remove();
     }
 
-    insertNote(note: Note): void {
-        this[voice].insertNote(note);
-    }
-
-    removeNote(note: Note): void {
-        this[voice].removeNote(note);
+    toggleNote(note: Note): void {
+        this[voice].toggleNote(note);
     }
 }
 
@@ -55,13 +56,11 @@ export class Cursor {
     [staff]: Staff;
 
     forward(delta: Fraction): void {
-        this[staff][main].cursor.forward(delta);
-        this[staff][extra].cursor.forward(delta);
+        this[staff][voices].forEach(part => part.cursor.forward(delta));
     }
 
     backward(delta: Fraction): void {
-        this[staff][main].cursor.backward(delta);
-        this[staff][extra].cursor.backward(delta);
+        this[staff][voices].forEach(part => part.cursor.backward(delta));
     }
 
     @SideEffect(dependentCursorForward)
@@ -75,9 +74,10 @@ export class Cursor {
     }
 
     nextVoice(): boolean {
-        if (this[staff][voice] === this[staff][main]) {
-            this[staff][voice] = this[staff][extra];
-            this[staff][dependent] = this[staff][main];
+        const i = this[staff][voices].indexOf(this[staff][voice]);
+
+        if (i + 1 < this[staff][voices].length) {
+            this[staff][voice] = this[staff][voices][i + 1];
 
             return true;
         }
@@ -85,9 +85,10 @@ export class Cursor {
         return false;
     }
     prevVoice(): boolean {
-        if (this[staff][voice] === this[staff][extra]) {
-            this[staff][voice] = this[staff][main];
-            this[staff][dependent] = this[staff][extra];
+        const i = this[staff][voices].indexOf(this[staff][voice]);
+
+        if (i > 0) {
+            this[staff][voice] = this[staff][voices][i - 1];
 
             return true;
         }
@@ -109,14 +110,15 @@ function SideEffect(
             value(this: Staff | Cursor, ...args: any[]): Fraction {
                 const diff = origin.apply(this, args);
 
-                switch (true) {
-                    case this instanceof Staff:
-                        action((this as Staff)[dependent].cursor, diff);
-                        break;
-                    case this instanceof Cursor:
-                        action((this as Cursor)[staff][dependent].cursor, diff);
-                        break;
-                }
+                const staffItem =
+                    this instanceof Staff
+                        ? (this as Staff)
+                        : (this as Cursor)[staff];
+                const current = staffItem[voice];
+
+                staffItem[voices].forEach(item => {
+                    if (item !== current) action(item.cursor, diff);
+                });
 
                 return diff;
             },
