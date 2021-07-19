@@ -5,8 +5,8 @@
         "build": "npm run clean && tsc",
         "clean": "rimraf package",
         "documentation:generate": "rimraf documentation/api && typedoc --options documentation/typedoc.json",
-        "script:publish": "node node-scripts/publish.js",
-        "start": "npm run clean && tsc -w",
+        "scripts:publish": "node node-scripts/publish.js",
+        "start": "npm run clean && tsc -w --inlineSourceMap",
         "test": "tsc --project test/tsconfig.test.json && mocha --config test/mocha.config.json"
     },
     "dependencies": {
