@@ -4,6 +4,3 @@ node-scripts/tools/*.js
 package/
 !src/package
 test/**/*.js
-
-
-test-example.js

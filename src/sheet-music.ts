@@ -110,9 +110,8 @@ export class Cursor {
     @Event(SheetMusic.Events.CursorMove)
     next(): void {
         if (this[owner][staffIndex] === -1) {
-            const diff = this[owner][staffs][
-                this[owner][staffIndex]
-            ].cursor.next();
+            const diff =
+                this[owner][staffs][this[owner][staffIndex]].cursor.next();
 
             for (let i = 0, lim = this[owner][staffs].length; i < lim; i++) {
                 if (i !== this[owner][staffIndex]) {
@@ -125,9 +124,8 @@ export class Cursor {
     @Event(SheetMusic.Events.CursorMove)
     prev(): void {
         if (this[owner][staffIndex] == -1) {
-            const diff = this[owner][staffs][
-                this[owner][staffIndex]
-            ].cursor.prev();
+            const diff =
+                this[owner][staffs][this[owner][staffIndex]].cursor.prev();
 
             for (let i = 0, lim = this[owner][staffs].length; i < lim; i++) {
                 if (i !== this[owner][staffIndex]) {

@@ -437,9 +437,8 @@ function updateTupletAuto(this: PartTuplet): void {
     );
 
     if (noteValueSizeSum.compare("!=", Fraction.Zero)) {
-        const baseNoteValueSize = Fraction.greatestCommonDivisor(
-            noteValueSizeSet,
-        );
+        const baseNoteValueSize =
+            Fraction.greatestCommonDivisor(noteValueSizeSet);
 
         this[index] = getTupletIndex(
             noteValueSizeSum.divide(baseNoteValueSize),
